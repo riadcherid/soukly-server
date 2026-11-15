@@ -25,11 +25,12 @@ La production utilisera Postgres hébergée (Supabase, Neon ou Railway)
 comme prévu dans le plan — même schéma, il suffira de changer
 `DATABASE_URL`.
 
-## Routes (v0.4.0)
+## Routes (v0.5.0)
 
 | Route | Rôle | Auth |
 |---|---|---|
 | `GET /api/health` | Santé du serveur | — |
+| `GET /api/address/suggest?q=...` | Suggestions d'adresse (Nominatim, min. 3 caractères) | — |
 | `GET /api/catalog` | Rayons, produits, prix et dispos, inventaire du matin | — |
 | `GET /api/images/:key` | Servir une photo produit uploadée (lecture publique) | — |
 | `POST /api/admin/upload-photo` | Envoyer une photo produit (multipart, JPEG/PNG/WebP, max 5 Mo) | Admin |

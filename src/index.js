@@ -12,6 +12,7 @@ import { googleRouter } from './google.js';
 import { imagesRouter, uploadRouter } from './photos.js';
 import { quoteFees } from './fees.js';
 import { PRIVACY_HTML } from './privacy.js';
+import { addressRouter } from './address.js';
 
 await initSchema();
 
@@ -23,7 +24,7 @@ const app = express();
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true, service: 'soukly-server', version: '0.4.1' });
+  res.json({ ok: true, service: 'soukly-server', version: '0.5.0' });
 });
 
 // Page de confidentialité (URL exigée par Google Play et l'App Store).
@@ -34,6 +35,7 @@ app.get('/privacy', (req, res) => {
 app.use('/api', catalogRouter);
 app.use('/api', authRouter);
 app.use('/api', ordersRouter);
+app.use('/api', addressRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/admin', uploadRouter);
 app.use('/api/images', imagesRouter);
