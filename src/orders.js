@@ -8,6 +8,7 @@ import { all, get, run, transaction } from './db.js';
 import { requireAuth } from './auth.js';
 import { requireAdmin } from './admin.js';
 import { quoteFees } from './fees.js';
+import { computeOrderTaxes } from './taxes.js';
 
 const ORDER_STATUSES = ['recue', 'en_preparation', 'prete', 'terminee', 'annulee'];
 const ITEM_STATUSES = ['a_collecter', 'collecte', 'manquant'];
@@ -35,6 +36,7 @@ function publicOrder(row, items) {
   return {
     id: row.id,
     customer_id: row.customer_id,
+    customer_name: row.customer_name ?? null,
     mode: row.mode,
     status: row.status,
     address: row.address,
@@ -44,6 +46,8 @@ function publicOrder(row, items) {
     delivery_fee_cents: row.delivery_fee_cents,
     service_fee_cents: row.service_fee_cents,
     tip_cents: row.tip_cents,
+    tps_cents: row.tps_cents ?? 0,
+    tvq_cents: row.tvq_cents ?? 0,
     estimated_total_cents: row.estimated_total_cents,
     total_cents: row.total_cents,
     final_total_cents: row.final_total_cents,
@@ -55,7 +59,11 @@ function publicOrder(row, items) {
 }
 
 async function loadOrderWithItems(orderId) {
-  const order = await get('SELECT * FROM orders WHERE id = $1', orderId);
+  const order = await get(
+    `SELECT o.*, c.name AS customer_name FROM orders o
+     LEFT JOIN customers c ON c.id = o.customer_id WHERE o.id = $1`,
+    orderId,
+  );
   if (!order) return null;
   const items = await all(
     'SELECT * FROM order_items WHERE order_id = $1 ORDER BY id',
@@ -68,18 +76,36 @@ async function loadOrderWithItems(orderId) {
 // (poids réel pesé quand il est renseigné, sinon poids estimé).
 // Si tous les articles sont en état final (collecté / manquant),
 // le total devient le total final.
+// Les taxes TPS/TVQ sont recalculées aussi : la pesée ne change que
+// des lignes au poids (taxe 0), mais un article manquant ou remplacé
+// (ligne à 0) fait tomber sa taxe.
 async function recomputeTotals(db, order) {
   const items = await db.all(
-    'SELECT * FROM order_items WHERE order_id = $1',
+    `SELECT oi.*, p.category_key, p.sold_by_weight, p.prepared
+     FROM order_items oi JOIN products p ON p.id = oi.product_id
+     WHERE oi.order_id = $1`,
     order.id,
   );
   const itemsTotal = items.reduce((sum, it) => sum + it.line_total_cents, 0);
-  const total = itemsTotal + order.delivery_fee_cents + order.service_fee_cents + order.tip_cents;
+  const taxes = computeOrderTaxes(
+    items.map((it) => ({
+      categoryKey: it.category_key,
+      soldByWeight: it.sold_by_weight === true,
+      prepared: it.prepared === true,
+      quantity: it.quantity,
+      lineTotalCents: it.line_total_cents,
+    })),
+    order.delivery_fee_cents,
+    order.service_fee_cents,
+  );
+  const total = itemsTotal + order.delivery_fee_cents + order.service_fee_cents + order.tip_cents + taxes.tps_cents + taxes.tvq_cents;
   const allFinal = items.length > 0 && items.every((it) => it.status !== 'a_collecter');
   await db.run(
-    `UPDATE orders SET total_cents = $1, final_total_cents = $2, updated_at = $3
-     WHERE id = $4`,
-    total, allFinal ? total : null, new Date().toISOString(), order.id,
+    `UPDATE orders SET total_cents = $1, final_total_cents = $2,
+       tps_cents = $3, tvq_cents = $4, updated_at = $5
+     WHERE id = $6`,
+    total, allFinal ? total : null, taxes.tps_cents, taxes.tvq_cents,
+    new Date().toISOString(), order.id,
   );
   return { total, final_total_cents: allFinal ? total : null };
 }
@@ -144,6 +170,9 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
     lines.push({
       product_id: product.id,
       product_name: product.name,
+      categoryKey: product.category_key,
+      soldByWeight: product.sold_by_weight === true,
+      prepared: product.prepared === true,
       quantity,
       weight_grams,
       unit_price_cents: product.price_cents,
@@ -152,16 +181,31 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
   }
 
   const itemsTotal = lines.reduce((sum, l) => sum + l.line_total_cents, 0);
-  const total = itemsTotal + fees.delivery_fee_cents + fees.service_fee_cents + tip;
+  // Taxes TPS/TVQ (source de vérité côté serveur) : par ligne selon
+  // rayon / poids / quantité, plus livraison et service. Le total
+  // estimé (et final) inclut les taxes. (Les lignes internes sont en
+  // snake_case : on les adapte au format attendu par computeOrderTaxes.)
+  const taxes = computeOrderTaxes(
+    lines.map((l) => ({
+      categoryKey: l.categoryKey,
+      soldByWeight: l.soldByWeight,
+      prepared: l.prepared,
+      quantity: l.quantity,
+      lineTotalCents: l.line_total_cents,
+    })),
+    fees.delivery_fee_cents,
+    fees.service_fee_cents,
+  );
+  const total = itemsTotal + fees.delivery_fee_cents + fees.service_fee_cents + tip + taxes.tps_cents + taxes.tvq_cents;
   const now = new Date().toISOString();
 
   const order = await transaction(async (db) => {
     const result = await db.run(
       `INSERT INTO orders
          (customer_id, mode, status, address, postal_code, phone, note,
-          delivery_fee_cents, service_fee_cents, tip_cents,
+          delivery_fee_cents, service_fee_cents, tip_cents, tps_cents, tvq_cents,
           estimated_total_cents, total_cents, delivery_zone, created_at, updated_at)
-       VALUES ($1, $2, 'recue', $3, $4, $5, $6, $7, $8, $9, $10, $10, $11, $12, $12)
+       VALUES ($1, $2, 'recue', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $13, $14, $14)
        RETURNING *`,
       req.customer.id, mode,
       String(body.address || '').trim() || null,
@@ -169,6 +213,7 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
       String(body.phone || req.customer.phone || '').trim() || null,
       String(body.note || '').trim() || null,
       fees.delivery_fee_cents, fees.service_fee_cents, tip,
+      taxes.tps_cents, taxes.tvq_cents,
       total, fees.delivery_zone, now,
     );
     const created = result.rows[0];
@@ -192,7 +237,9 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
 // GET /api/orders/mine — commandes du client connecté.
 ordersRouter.get('/orders/mine', requireAuth, async (req, res) => {
   const orders = await all(
-    'SELECT * FROM orders WHERE customer_id = $1 ORDER BY id DESC',
+    `SELECT o.*, c.name AS customer_name FROM orders o
+     LEFT JOIN customers c ON c.id = o.customer_id
+     WHERE o.customer_id = $1 ORDER BY o.id DESC`,
     req.customer.id,
   );
   const out = [];
@@ -211,8 +258,18 @@ ordersRouter.get('/orders', requireAdmin, async (req, res) => {
   const status = String(req.query.status || '').trim();
   const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 100));
   const orders = status && ORDER_STATUSES.includes(status)
-    ? await all('SELECT * FROM orders WHERE status = $1 ORDER BY id DESC LIMIT $2', status, limit)
-    : await all('SELECT * FROM orders ORDER BY id DESC LIMIT $1', limit);
+    ? await all(
+        `SELECT o.*, c.name AS customer_name FROM orders o
+         LEFT JOIN customers c ON c.id = o.customer_id
+         WHERE o.status = $1 ORDER BY o.id DESC LIMIT $2`,
+        status, limit,
+      )
+    : await all(
+        `SELECT o.*, c.name AS customer_name FROM orders o
+         LEFT JOIN customers c ON c.id = o.customer_id
+         ORDER BY o.id DESC LIMIT $1`,
+        limit,
+      );
   const out = [];
   for (const order of orders) {
     const items = await all(

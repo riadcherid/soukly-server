@@ -85,3 +85,10 @@ ALTER TABLE customers ADD COLUMN IF NOT EXISTS apple_sub TEXT UNIQUE;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS estimated_total_cents INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS final_total_cents INTEGER;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS replacement_product_id INTEGER REFERENCES products(id);
+
+-- Évolutions v0.5.2 (idempotentes, rejouées à chaque démarrage) :
+-- taxes TPS/TVQ stockées sur la commande ; indicateur « préparé »
+-- (fast-food) sur le produit, taxable TPS + TVQ.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tps_cents INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tvq_cents INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS prepared BOOLEAN NOT NULL DEFAULT FALSE;

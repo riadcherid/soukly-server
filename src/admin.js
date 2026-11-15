@@ -73,6 +73,7 @@ function toProduct(row) {
     unit: row.unit,
     price_cents: row.price_cents,
     sold_by_weight: row.sold_by_weight === true,
+    prepared: row.prepared === true,
     available: row.available === true,
     image_key: row.image_key,
     photo_url: photoUrl(row.image_key),
@@ -107,6 +108,7 @@ adminRouter.post('/products', async (req, res) => {
 
   const price_cents = Math.max(0, Math.floor(Number(body.price_cents) || 0));
   const sold_by_weight = body.sold_by_weight === true;
+  const prepared = body.prepared === true;
   const available = body.available === true;
   const description = String(body.description || '').trim();
   const image_key = body.image_key != null ? String(body.image_key) : null;
@@ -118,17 +120,18 @@ adminRouter.post('/products', async (req, res) => {
     if (existing) {
       const result = await run(
         `UPDATE products SET name = $1, description = $2, category_key = $3, unit = $4,
-           price_cents = $5, sold_by_weight = $6, available = $7, image_key = $8
-         WHERE id = $9 RETURNING *`,
-        name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, id,
+           price_cents = $5, sold_by_weight = $6, available = $7, image_key = $8,
+           prepared = $9
+         WHERE id = $10 RETURNING *`,
+        name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, id,
       );
       product = result.rows[0];
     } else {
       const result = await run(
         `INSERT INTO products
-           (id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-        id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key,
+           (id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+        id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared,
       );
       product = result.rows[0];
     }
@@ -136,9 +139,9 @@ adminRouter.post('/products', async (req, res) => {
     const next = await get('SELECT COALESCE(MAX(id), 0) + 1 AS id FROM products');
     const result = await run(
       `INSERT INTO products
-         (id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      next.id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key,
+         (id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      next.id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared,
     );
     product = result.rows[0];
   }

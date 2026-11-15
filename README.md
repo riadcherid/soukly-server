@@ -25,7 +25,7 @@ La production utilisera Postgres hébergée (Supabase, Neon ou Railway)
 comme prévu dans le plan — même schéma, il suffira de changer
 `DATABASE_URL`.
 
-## Routes (v0.5.0)
+## Routes (v0.5.2)
 
 | Route | Rôle | Auth |
 |---|---|---|
@@ -44,7 +44,7 @@ comme prévu dans le plan — même schéma, il suffira de changer
 | `POST /api/fees/quote` | Frais de livraison et de service selon le code postal | — |
 | `POST /api/orders` | Créer une commande (livraison / cueillette, pourboire livreur) | Bearer (client) |
 | `GET /api/orders/mine` | Commandes du client connecté | Bearer (client) |
-| `GET /api/orders` | Toutes les commandes (filtre `?status=`, `?limit=`) | Admin |
+| `GET /api/orders` | Toutes les commandes (filtre `?status=`, `?limit=`) — chaque commande renvoie aussi `customer_name` (nom du client, jointure sur `customers`) | Admin |
 | `PATCH /api/orders/{id}/status` | Statut : reçue, en préparation, prête, terminée, annulée | Admin |
 | `PATCH /api/orders/{id}/items/{itemId}/status` | Collecte : collecté / manquant (+ remplacement) | Admin |
 | `PATCH /api/orders/{id}/items/{itemId}/weight` | Poids réel pesé en grammes → montant final | Admin |
@@ -74,6 +74,28 @@ Frais (règles de Riad, 2026-11-14) : livraison 2,99 $ Saint-Laurent (H4L),
   enregistré, non facturé) ; le poids réel pesé recalcule la ligne et le
   total ; quand tous les articles sont collectés ou manquants, le total
   devient le total final (`final_total_cents`).
+
+### Taxes TPS / TVQ (règles de Riad, 2026-11-15)
+
+- Prix affichés hors taxes ; taxes calculées côté serveur à la création
+  de la commande et ajoutées au total (estimé et final), stockées en
+  `tps_cents` et `tvq_cents` sur la commande, recalculées à la collecte
+  (un article manquant ou remplacé fait tomber sa taxe).
+- TPS 5 % ; TVQ 9,975 % calculée sur (prix + TPS). Arrondi au cent par
+  ligne (frais inclus).
+- DÉTAXÉS (0 %) : Fruits, Légumes, Viandes et poissons, Laitages et
+  œufs, Boulangerie, Épicerie sèche et conserves, Surgelés — ainsi que
+  les rayons sans règle propre (Promotions, Bébé et enfant, Santé).
+- TAXABLES TPS + TVQ : Boissons, Grignotines, Produits ménagers, Soins
+  personnels et beauté, Animaux, Fleurs et plantes, Fête, Jouets et jeux.
+- Pâtisserie : moins de 6 pièces du même produit → TPS seulement ;
+  6 pièces ou plus → aucune taxe.
+- Vendu au poids → aucune taxe, quel que soit le rayon.
+- Aliment préparé / fast-food (ex. pizza) → taxable TPS + TVQ :
+  indicateur `prepared` sur le produit (colonne `products.prepared`,
+  réglable par `POST /api/admin/products`) ; aucun produit concerné
+  pour l'instant.
+- Frais de livraison et frais de service → taxables TPS + TVQ.
 
 ### Photos produits
 
