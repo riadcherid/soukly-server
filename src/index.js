@@ -3,6 +3,7 @@
 import 'dotenv/config';
 import express from 'express';
 import { initSchema } from './db.js';
+import { seedCatalogIfEmpty } from './seed.js';
 import { catalogRouter } from './catalog.js';
 import { authRouter } from './auth.js';
 import { ordersRouter } from './orders.js';
@@ -12,6 +13,10 @@ import { imagesRouter, uploadRouter } from './photos.js';
 import { quoteFees } from './fees.js';
 
 await initSchema();
+
+// Base neuve (ex. premier démarrage sur Render) : on remplit le catalogue
+// depuis catalog.json. Sinon on ne touche à rien (prix du matin préservés).
+await seedCatalogIfEmpty();
 
 const app = express();
 app.use(express.json({ limit: '2mb' }));
