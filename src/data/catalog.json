@@ -1,0 +1,845 @@
+{
+  "categories": [
+    {
+      "key": "fruits",
+      "label": "Fruits",
+      "sort": 1
+    },
+    {
+      "key": "legumes",
+      "label": "Légumes",
+      "sort": 2
+    },
+    {
+      "key": "viandes-poissons",
+      "label": "Viandes et poissons",
+      "sort": 3
+    },
+    {
+      "key": "laitages-oeufs",
+      "label": "Laitages et œufs",
+      "sort": 4
+    },
+    {
+      "key": "boulangerie",
+      "label": "Boulangerie",
+      "sort": 5
+    },
+    {
+      "key": "patisserie",
+      "label": "Pâtisserie",
+      "sort": 6
+    },
+    {
+      "key": "epicerie-seche",
+      "label": "Épicerie sèche et conserves",
+      "sort": 7
+    },
+    {
+      "key": "boissons",
+      "label": "Boissons",
+      "sort": 8
+    },
+    {
+      "key": "surgeles",
+      "label": "Surgelés",
+      "sort": 9
+    },
+    {
+      "key": "menager",
+      "label": "Produits ménagers",
+      "sort": 10
+    },
+    {
+      "key": "promotions",
+      "label": "Promotions",
+      "sort": 11
+    },
+    {
+      "key": "grignotines",
+      "label": "Grignotines",
+      "sort": 12
+    },
+    {
+      "key": "soins-personnels-et-beaute",
+      "label": "Soins personnels et beauté",
+      "sort": 13
+    },
+    {
+      "key": "bebe-et-enfant",
+      "label": "Bébé et enfant",
+      "sort": 14
+    },
+    {
+      "key": "animaux",
+      "label": "Animaux",
+      "sort": 15
+    },
+    {
+      "key": "sante",
+      "label": "Santé",
+      "sort": 16
+    },
+    {
+      "key": "fleurs-et-plantes",
+      "label": "Fleurs et plantes",
+      "sort": 17
+    },
+    {
+      "key": "fete",
+      "label": "Fête",
+      "sort": 18
+    },
+    {
+      "key": "jouets-et-jeux",
+      "label": "Jouets et jeux",
+      "sort": 19
+    }
+  ],
+  "exported_from": "artifact marche-epicerie, action listcatalog",
+  "exported_on": "2026-11-14",
+  "inventory": {
+    "date": "2026-11-14",
+    "note": "Tina ma femme",
+    "updated_at": "2026-11-14T18:44:34.228Z"
+  },
+  "products": [
+    {
+      "available": true,
+      "category": "legumes",
+      "description": "Tomates fraîches, idéales en salade ou en sauce.",
+      "id": 1,
+      "image_key": "tomates.webp",
+      "name": "Tomates",
+      "price_cents": 498,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": true,
+      "category": "fruits",
+      "description": "Bananes mûres, sucrées, parfaites au petit-déjeuner.",
+      "id": 2,
+      "image_key": "bananes.jpg",
+      "name": "Bananes",
+      "price_cents": 190,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": true,
+      "category": "fruits",
+      "description": "Pommes Gala croquantes et sucrées, à croquer ou en tarte.",
+      "id": 3,
+      "image_key": "pommes.jpg",
+      "name": "Pommes Gala",
+      "price_cents": 348,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": true,
+      "category": "legumes",
+      "description": "Concombres frais et croquants, pour salades et sandwichs.",
+      "id": 4,
+      "image_key": "concombres.jpg",
+      "name": "Concombres",
+      "price_cents": 125,
+      "sold_by_weight": false,
+      "unit": "la pièce"
+    },
+    {
+      "available": true,
+      "category": "viandes-poissons",
+      "description": "Poulet entier halal, prêt à rôtir au four.",
+      "id": 5,
+      "image_key": "poulet.jpg",
+      "name": "Poulet entier",
+      "price_cents": 899,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": true,
+      "category": "viandes-poissons",
+      "description": "Bœuf haché halal, pour keftas, sauces et farces.",
+      "id": 6,
+      "image_key": "boeuf-hache.jpg",
+      "name": "Bœuf haché",
+      "price_cents": 1199,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": true,
+      "category": "viandes-poissons",
+      "description": "Filets de saumon frais, à griller ou au four.",
+      "id": 7,
+      "image_key": "saumon.jpg",
+      "name": "Filets de saumon",
+      "price_cents": 2198,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": true,
+      "category": "laitages-oeufs",
+      "description": "Lait frais entier, bouteille de 1 L.",
+      "id": 8,
+      "image_key": "lait.jpg",
+      "name": "Lait frais",
+      "price_cents": 279,
+      "sold_by_weight": false,
+      "unit": "la bouteille 1 L"
+    },
+    {
+      "available": true,
+      "category": "laitages-oeufs",
+      "description": "Œufs bruns frais, douzaine.",
+      "id": 9,
+      "image_key": "oeufs.jpg",
+      "name": "Œufs bruns",
+      "price_cents": 429,
+      "sold_by_weight": false,
+      "unit": "la douzaine"
+    },
+    {
+      "available": true,
+      "category": "laitages-oeufs",
+      "description": "Cheddar fort en bloc de 400 g, à râper ou en tranches.",
+      "id": 10,
+      "image_key": "cheddar.png",
+      "name": "Cheddar fort",
+      "price_cents": 849,
+      "sold_by_weight": false,
+      "unit": "le bloc 400 g"
+    },
+    {
+      "available": true,
+      "category": "boulangerie",
+      "description": "Baguette fraîche, croustillante.",
+      "id": 11,
+      "image_key": "baguette.jpg",
+      "name": "Baguette",
+      "price_cents": 195,
+      "sold_by_weight": false,
+      "unit": "la pièce"
+    },
+    {
+      "available": true,
+      "category": "boulangerie",
+      "description": "Croissants au beurre, paquet de 4.",
+      "id": 12,
+      "image_key": "croissants.jpg",
+      "name": "Croissants",
+      "price_cents": 599,
+      "sold_by_weight": false,
+      "unit": "le paquet de 4"
+    },
+    {
+      "available": true,
+      "category": "boulangerie",
+      "description": "Pain de mie moelleux, pour sandwichs et toasts.",
+      "id": 13,
+      "image_key": "pain-mie.jpg",
+      "name": "Pain de mie",
+      "price_cents": 349,
+      "sold_by_weight": false,
+      "unit": "le pain"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Riz basmati parfumé, sac de 2 kg.",
+      "id": 14,
+      "image_key": "riz.webp",
+      "name": "Riz basmati",
+      "price_cents": 999,
+      "sold_by_weight": false,
+      "unit": "le sac de 2 kg"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Spaghetti, paquet de 900 g.",
+      "id": 15,
+      "image_key": "pates.webp",
+      "name": "Spaghetti",
+      "price_cents": 229,
+      "sold_by_weight": false,
+      "unit": "le paquet 900 g"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Huile d'olive, bouteille de 750 ml, pour cuisson et salades.",
+      "id": 16,
+      "image_key": "huile-olive.jpg",
+      "name": "Huile d'olive",
+      "price_cents": 1199,
+      "sold_by_weight": false,
+      "unit": "la bouteille 750 ml"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Tomates en conserve, boîte de 796 ml, pour sauces.",
+      "id": 17,
+      "image_key": "tomates-conserve.png",
+      "name": "Tomates en conserve",
+      "price_cents": 179,
+      "sold_by_weight": false,
+      "unit": "la boîte 796 ml"
+    },
+    {
+      "available": true,
+      "category": "boissons",
+      "description": "Jus d'orange, bouteille de 1,5 L.",
+      "id": 18,
+      "image_key": "jus-orange.jpg",
+      "name": "Jus d'orange frais",
+      "price_cents": 549,
+      "sold_by_weight": false,
+      "unit": "la bouteille 1,5 L"
+    },
+    {
+      "available": true,
+      "category": "boissons",
+      "description": "Café en grains, sac de 500 g.",
+      "id": 19,
+      "image_key": "cafe.jpg",
+      "name": "Café en grains",
+      "price_cents": 1299,
+      "sold_by_weight": false,
+      "unit": "le sac 500 g"
+    },
+    {
+      "available": true,
+      "category": "boissons",
+      "description": "Eau pétillante, paquet de 12.",
+      "id": 20,
+      "image_key": "eau-petillante.png",
+      "name": "Eau pétillante",
+      "price_cents": 699,
+      "sold_by_weight": false,
+      "unit": "le paquet de 12"
+    },
+    {
+      "available": true,
+      "category": "surgeles",
+      "description": "Petits pois surgelés, sac de 750 g.",
+      "id": 21,
+      "image_key": "petits-pois.png",
+      "name": "Petits pois surgelés",
+      "price_cents": 329,
+      "sold_by_weight": false,
+      "unit": "le sac 750 g"
+    },
+    {
+      "available": true,
+      "category": "surgeles",
+      "description": "Crème glacée à la vanille, pot de 1,5 L.",
+      "id": 22,
+      "image_key": "creme-glacee.jpg",
+      "name": "Crème glacée vanille",
+      "price_cents": 649,
+      "sold_by_weight": false,
+      "unit": "le pot 1,5 L"
+    },
+    {
+      "available": true,
+      "category": "menager",
+      "description": "Liquide vaisselle, bouteille de 740 ml.",
+      "id": 23,
+      "image_key": "liquide-vaisselle.jpg",
+      "name": "Liquide vaisselle",
+      "price_cents": 399,
+      "sold_by_weight": false,
+      "unit": "la bouteille 740 ml"
+    },
+    {
+      "available": true,
+      "category": "menager",
+      "description": "Essuie-tout, paquet de 6 rouleaux.",
+      "id": 24,
+      "image_key": "essuie-tout.webp",
+      "name": "Essuie-tout",
+      "price_cents": 799,
+      "sold_by_weight": false,
+      "unit": "le paquet de 6"
+    },
+    {
+      "available": false,
+      "category": "legumes",
+      "description": "Pommes de terre fermes, pour frites, purées et tajines.",
+      "id": 25,
+      "image_key": null,
+      "name": "Pommes de terre",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "legumes",
+      "description": "Oignons jaunes, base de toutes les cuissons.",
+      "id": 26,
+      "image_key": null,
+      "name": "Oignons",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "legumes",
+      "description": "Carottes fraîches, croquantes, en salade ou cuites.",
+      "id": 27,
+      "image_key": null,
+      "name": "Carottes",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "legumes",
+      "description": "Poivrons frais, verts ou rouges, à farcir ou en salade.",
+      "id": 28,
+      "image_key": null,
+      "name": "Poivrons",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "legumes",
+      "description": "Laitue romaine fraîche et croquante.",
+      "id": 29,
+      "image_key": null,
+      "name": "Laitue romaine",
+      "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "la pièce"
+    },
+    {
+      "available": false,
+      "category": "legumes",
+      "description": "Aubergines fraîches, pour grillades et ratatouille.",
+      "id": 30,
+      "image_key": null,
+      "name": "Aubergines",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "legumes",
+      "description": "Courgettes tendres, à griller ou en tajine.",
+      "id": 31,
+      "image_key": null,
+      "name": "Courgettes",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "fruits",
+      "description": "Citrons frais, pour jus, marinades et thés.",
+      "id": 32,
+      "image_key": null,
+      "name": "Citrons",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "fruits",
+      "description": "Oranges juteuses, à presser ou à croquer.",
+      "id": 33,
+      "image_key": null,
+      "name": "Oranges",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "fruits",
+      "description": "Mangues mûres et sucrées.",
+      "id": 34,
+      "image_key": null,
+      "name": "Mangues",
+      "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "la pièce"
+    },
+    {
+      "available": false,
+      "category": "fruits",
+      "description": "Grenades fraîches, grains sucrés et acidulés.",
+      "id": 35,
+      "image_key": null,
+      "name": "Grenades",
+      "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "la pièce"
+    },
+    {
+      "available": false,
+      "category": "fruits",
+      "description": "Clémentines faciles à éplucher, sucrées.",
+      "id": 36,
+      "image_key": null,
+      "name": "Clémentines",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "viandes-poissons",
+      "description": "Cuisses de poulet halal, à rôtir ou en tajine.",
+      "id": 37,
+      "image_key": null,
+      "name": "Cuisses de poulet",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "viandes-poissons",
+      "description": "Pilons de poulet halal, à griller ou au four.",
+      "id": 38,
+      "image_key": null,
+      "name": "Pilons de poulet",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "viandes-poissons",
+      "description": "Crevettes fraîches, à poêler ou en brochettes.",
+      "id": 39,
+      "image_key": null,
+      "name": "Crevettes",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "viandes-poissons",
+      "description": "Bologne de poulet halal, en tranches pour sandwichs.",
+      "id": 40,
+      "image_key": null,
+      "name": "Bologne de poulet halal",
+      "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "le paquet"
+    },
+    {
+      "available": false,
+      "category": "patisserie",
+      "description": "Pâtisseries orientales assorties, au miel et aux amandes.",
+      "id": 41,
+      "image_key": null,
+      "name": "Pâtisseries orientales",
+      "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "la boîte"
+    },
+    {
+      "available": false,
+      "category": "epicerie-seche",
+      "description": "Semoule fine pour couscous, légère et dorée.",
+      "id": 42,
+      "image_key": null,
+      "name": "Semoule fine",
+      "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "le sac 1 kg"
+    },
+    {
+      "available": false,
+      "category": "fruits",
+      "description": "Dattes Medjool, grosses et fondantes.",
+      "id": 43,
+      "image_key": null,
+      "name": "Dattes Medjool",
+      "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "la boîte"
+    },
+    {
+      "available": false,
+      "category": "fruits",
+      "description": "Dattes algériennes, sucrées, pour le thé ou la table.",
+      "id": 44,
+      "image_key": null,
+      "name": "Dattes algériennes",
+      "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "la boîte"
+    },
+    {
+      "available": false,
+      "category": "epicerie-seche",
+      "description": "Olives en vrac, marinées, à l'huile ou au citron.",
+      "id": 45,
+      "image_key": null,
+      "name": "Olives en vrac",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "epicerie-seche",
+      "description": "Miel, pour le thé, les pâtisseries et le petit-déjeuner.",
+      "id": 46,
+      "image_key": null,
+      "name": "Miel",
+      "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "le pot"
+    },
+    {
+      "available": false,
+      "category": "epicerie-seche",
+      "description": "Ghee (beurre clarifié), pour pâtisseries et cuissons.",
+      "id": 47,
+      "image_key": null,
+      "name": "Ghee",
+      "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "le pot"
+    },
+    {
+      "available": false,
+      "category": "boissons",
+      "description": "Soda algérien Hamoud Boualem, le goût de là-bas.",
+      "id": 48,
+      "image_key": null,
+      "name": "Soda Hamoud Boualem",
+      "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "la bouteille"
+    },
+    {
+      "available": false,
+      "category": "surgeles",
+      "description": "Frites surgelées, croustillantes au four ou à la friteuse.",
+      "id": 49,
+      "image_key": null,
+      "name": "Frites surgelées",
+      "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "le sac"
+    },
+    {
+      "available": false,
+      "category": "fruits",
+      "description": "Poires fraîches et juteuses, à croquer ou en compote.",
+      "id": 50,
+      "image_key": "poires.webp",
+      "name": "Poires",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "fruits",
+      "description": "Fraises fraîches et sucrées, en barquette.",
+      "id": 51,
+      "image_key": "fraises.webp",
+      "name": "Fraises",
+      "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "la barquette"
+    },
+    {
+      "available": false,
+      "category": "fruits",
+      "description": "Raisins frais, sucrés, à croquer ou en salade de fruits.",
+      "id": 52,
+      "image_key": "raisins.webp",
+      "name": "Raisins",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "fruits",
+      "description": "Avocats mûrs, pour salades, toasts et guacamole.",
+      "id": 53,
+      "image_key": "avocats.webp",
+      "name": "Avocats",
+      "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "la pièce"
+    },
+    {
+      "available": false,
+      "category": "fruits",
+      "description": "Ananas frais et sucré, à découper ou en jus.",
+      "id": 54,
+      "image_key": "ananas.webp",
+      "name": "Ananas",
+      "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "la pièce"
+    },
+    {
+      "available": false,
+      "category": "fruits",
+      "description": "Kiwis frais, acidulés, riches en vitamine C.",
+      "id": 55,
+      "image_key": "kiwis.webp",
+      "name": "Kiwis",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "legumes",
+      "description": "Ail frais, pour toutes les cuissons.",
+      "id": 56,
+      "image_key": "ail.webp",
+      "name": "Ail",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "legumes",
+      "description": "Persil frais en botte, pour salades et tajines.",
+      "id": 57,
+      "image_key": "persil.webp",
+      "name": "Persil",
+      "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "la botte"
+    },
+    {
+      "available": false,
+      "category": "legumes",
+      "description": "Brocoli frais, à cuire à la vapeur ou en gratin.",
+      "id": 58,
+      "image_key": "brocoli.webp",
+      "name": "Brocoli",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "viandes-poissons",
+      "description": "Ailes de poulet halal, à griller ou au four.",
+      "id": 59,
+      "image_key": "ailes-poulet.webp",
+      "name": "Ailes de poulet",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "viandes-poissons",
+      "description": "Blanc de poulet halal, tendre, à poêler ou en tajine.",
+      "id": 60,
+      "image_key": "blanc-poulet.webp",
+      "name": "Blanc de poulet",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "viandes-poissons",
+      "description": "Côtelettes d'agneau halal, à griller.",
+      "id": 61,
+      "image_key": "cotelettes-agneau.webp",
+      "name": "Côtelettes d'agneau",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "viandes-poissons",
+      "description": "Gigot d'agneau halal, à rôtir au four.",
+      "id": 62,
+      "image_key": "gigot-agneau.webp",
+      "name": "Gigot d'agneau",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "viandes-poissons",
+      "description": "Merguez halal, à griller ou à la poêle.",
+      "id": 63,
+      "image_key": "merguez.webp",
+      "name": "Merguez halal",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "viandes-poissons",
+      "description": "Sardines fraîches, à griller ou en friture.",
+      "id": 64,
+      "image_key": "sardines.webp",
+      "name": "Sardines",
+      "price_cents": 0,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": false,
+      "category": "patisserie",
+      "description": "Millefeuille feuilleté, crème pâtissière et sucre glace.",
+      "id": 65,
+      "image_key": "millefeuille.webp",
+      "name": "Millefeuille",
+      "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "la pièce"
+    },
+    {
+      "available": false,
+      "category": "patisserie",
+      "description": "Tartelette aux fruits frais, crème pâtissière.",
+      "id": 66,
+      "image_key": "tartelette-fruits.webp",
+      "name": "Tartelette aux fruits",
+      "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "la pièce"
+    },
+    {
+      "available": false,
+      "category": "patisserie",
+      "description": "Pâtisserie trois chocolats, noir, lait et blanc.",
+      "id": 67,
+      "image_key": "trois-chocolats.webp",
+      "name": "Pâtisserie trois chocolats",
+      "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "la pièce"
+    }
+  ]
+}

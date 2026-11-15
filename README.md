@@ -1,0 +1,191 @@
+# Serveur API Soukly — appli mobile (Flutter, Android + iOS)
+
+API REST pour la future appli mobile Soukly. Plan complet :
+`../files/plan-appli-mobile-flutter.md` (§3 architecture, §4 routes, §6 plan).
+
+## Démarrer
+
+```bash
+npm install
+npm run seed   # crée la base locale et migre le catalogue de l'appli web
+npm start      # écoute sur http://localhost:3000
+```
+
+La configuration se lit dans `.env` (voir `.env.example`). Sans `.env`,
+les valeurs de développement par défaut sont utilisées (avec avertissement
+pour `JWT_SECRET` ; les routes admin sont fermées sans `ADMIN_TOKEN`).
+
+## Base de données
+
+**Postgres 16 local** (base `soukly`, utilisateur `soukly`, port 5432).
+Démarrer le cluster si besoin : `pg_ctlcluster 16 main start`.
+Connexion via `DATABASE_URL` (voir `.env.example` ; le mot de passe
+`soukly-dev-only` est un mot de passe de développement local uniquement).
+La production utilisera Postgres hébergée (Supabase, Neon ou Railway)
+comme prévu dans le plan — même schéma, il suffira de changer
+`DATABASE_URL`.
+
+## Routes (v0.4.0)
+
+| Route | Rôle | Auth |
+|---|---|---|
+| `GET /api/health` | Santé du serveur | — |
+| `GET /api/catalog` | Rayons, produits, prix et dispos, inventaire du matin | — |
+| `GET /api/images/:key` | Servir une photo produit uploadée (lecture publique) | — |
+| `POST /api/admin/upload-photo` | Envoyer une photo produit (multipart, JPEG/PNG/WebP, max 5 Mo) | Admin |
+| `POST /api/auth/register` | Compte client (nom, téléphone, mot de passe) | — |
+| `POST /api/auth/login` | Connexion téléphone + mot de passe | — |
+| `POST /api/auth/logout` | Déconnexion (jeton JWT sans état : le client jette son jeton) | — |
+| `GET /api/auth/me` | Client connecté | Bearer (client) |
+| `POST /api/auth/google` | Échange du code Google côté serveur, compte par courriel vérifié | — |
+| `POST /api/auth/apple` | Vérification du jeton d'identité Apple (iOS) | — |
+| `GET /api/config/google` | Identifiant client Google public + connexion activée | — |
+| `POST /api/fees/quote` | Frais de livraison et de service selon le code postal | — |
+| `POST /api/orders` | Créer une commande (livraison / cueillette, pourboire livreur) | Bearer (client) |
+| `GET /api/orders/mine` | Commandes du client connecté | Bearer (client) |
+| `GET /api/orders` | Toutes les commandes (filtre `?status=`, `?limit=`) | Admin |
+| `PATCH /api/orders/{id}/status` | Statut : reçue, en préparation, prête, terminée, annulée | Admin |
+| `PATCH /api/orders/{id}/items/{itemId}/status` | Collecte : collecté / manquant (+ remplacement) | Admin |
+| `PATCH /api/orders/{id}/items/{itemId}/weight` | Poids réel pesé en grammes → montant final | Admin |
+| `POST /api/admin/products` | Ajouter / modifier un produit | Admin |
+| `DELETE /api/admin/products/{id}` | Retirer un produit (409 s'il est dans une commande) | Admin |
+| `POST /api/admin/categories` | Ajouter / renommer un rayon | Admin |
+| `POST /api/admin/inventory` | Inventaire du matin (prix et dispos du jour) | Admin |
+| `GET /api/admin/ai-settings` | Réglages IA (clé masquée, jamais en clair) | Admin |
+| `POST /api/admin/ai-settings` | Enregistrer fournisseur IA + clé | Admin |
+| `POST /api/admin/ai/describe-photo` | Description IA en français depuis une photo | Admin |
+| `POST /api/admin/ai/test-key` | Tester la clé IA | Admin |
+| `GET /api/admin/google-settings` | Réglages Google (secret masqué) | Admin |
+| `POST /api/admin/google-settings` | Enregistrer identifiant + secret Google | Admin |
+| `POST /api/admin/google/test` | Tester la config Google chez Google | Admin |
+
+Frais (règles de Riad, 2026-11-14) : livraison 2,99 $ Saint-Laurent (H4L),
+4,99 $ reste de Montréal, 7,99 $ plus loin ; service 4,99 $ livraison /
+2,99 $ cueillette. Prix en cents, poids en grammes.
+
+### Commandes — règles
+
+- Produits au poids : poids choisi par le client de 1 g à 5000 g, prix
+  stocké au kg, total estimé sur le poids entier entré.
+- Pourboire livreur en livraison seulement (forcé à 0 en cueillette).
+- Produits à prix 0 ou indisponibles : non commandables.
+- À la collecte : un article manquant tombe à 0 (remplacement éventuel
+  enregistré, non facturé) ; le poids réel pesé recalcule la ligne et le
+  total ; quand tous les articles sont collectés ou manquants, le total
+  devient le total final (`final_total_cents`).
+
+### Photos produits
+
+- `POST /api/admin/upload-photo` (multipart, jeton admin exigé) : champ
+  `photo`, types acceptés JPEG / PNG / WebP, 5 Mo maximum. Le fichier est
+  stocké sous `data/uploads/` (dans `~/workspace`, il survit donc à un
+  remplacement de VM, contrairement à Postgres installé par apt) avec un
+  nom unique (`<horodatage>-<aléatoire>.<ext>`, jamais le nom d'origine).
+  Réponse : `{ ok: true, image_key, mime_type, size }`. L'`image_key`
+  est ensuite à passer à `POST /api/admin/products`.
+- `GET /api/images/:key` (lecture publique) : sert le fichier avec le
+  bon type MIME, 404 si la clé est inconnue ou la clé invalide (la clé
+  est validée pour empêcher toute traversée de chemin).
+- `GET /api/catalog` (et les réponses produits de l'admin) renvoient
+  désormais un `photo_url` réel (`/api/images/<image_key>`) pour les
+  produits qui ont une `image_key`, `null` sinon.
+- **Photos migrées (2026-11-15)** : les 18 produits ajoutés le 2026-11-14
+  (ids 50–67 : 9 fruits et légumes, 6 viandes et poissons, 3 pâtisseries)
+  ont leur photo générée dans `data/uploads/` sous un nom stable
+  `<slug>.webp` (ex. `poires.webp`, `merguez.webp`, `trois-chocolats.webp`),
+  et leur `image_key` vaut ce nom de fichier. Convention : l'`image_key`
+  doit inclure l'extension (`.webp`, `.jpg`, `.png`), sinon
+  `GET /api/images/:key` répond 404 (pas de type MIME sans extension).
+  L'`image_key` est dans `src/data/catalog.json` comme dans la base, donc
+  un réensemencement (`npm run seed`) la conserve. Les 18 restent à prix 0
+  et indisponibles (« Prix fixé à l'inventaire du matin »).
+- Les 24 premiers produits (ids 1–24) gardent l'`image_key` en forme de
+  slug sans extension héritée de l'export de l'appli web : leur `photo_url`
+  répond 404 tant que leurs fichiers ne sont pas dans `data/uploads/`.
+  **Récupération vérifiée le 2026-11-15 (inspection de l'appli web)** : les
+  photos ne sont ni en base ni en blob (`photo_blob_key = null` pour les
+  24) — ce sont des assets statiques embarqués au build de l'appli web,
+  importés dans `client/src/images.ts` (`PRODUCT_IMAGES`) depuis
+  `client/src/assets/` (ex. `tomates.webp`, `bananes.jpg`, `cheddar.png`).
+  Aucune action de l'appli ne renvoie d'image (`listcatalog` ne donne que
+  la clé, `photo_url` null ; `describeproductphoto` prend une photo en
+  entrée ; `upsertproduct` en envoie une) : il n'existe ni téléchargement
+  ni export. La seule récupération possible est une copie en lecture seule
+  des 24 fichiers sources (`client/src/assets/`, extensions mélangées :
+  `.webp`, `.jpg`, `.png` — garder l'extension d'origine dans
+  l'`image_key`, le serveur accepte JPEG/PNG/WebP), puis mettre
+  `image_key` à `<slug>.<ext>` dans `catalog.json` et réensemencer. Cette
+  copie directe des fichiers de l'appli web n'a pas été faite (lecture des
+  fichiers de l'artefact interdite) : à autoriser explicitement, ou
+  alternative — reprendre les photos via le formulaire admin
+  (`POST /api/admin/upload-photo`, qui fonctionne), ou régénérer des
+  photos IA dans le même style.
+- **Photos des 24 premiers produits — COPIÉES le 2026-11-15** (copie en
+  lecture seule autorisée explicitement, aucune écriture côté artefact) :
+  les 24 fichiers sources de `client/src/assets/` de l'appli web ont été
+  copiés dans `data/uploads/` (md5 vérifiés, octet pour octet), `image_key`
+  mis à `<slug>.<ext>` dans `src/data/catalog.json`, base réensemencée
+  (`npm run seed`, prix et dispos inchangés — les 24 restent disponibles,
+  avec prix). Vérifié par curl : `GET /api/catalog` donne un `photo_url`
+  réel pour les 24, et `GET /api/images/<key>` répond 200 avec le bon type
+  MIME pour chacun. Bilan photos : 42/67 produits avec photo (24 premiers
+  + 18 nouveaux) ; restent sans photo les 25 produits de la partie B
+  (ids 25–49, prix 0, à photographier à Épilys).
+
+### Authentification admin
+
+L'appli web n'a pas d'authentification admin : ici, les routes
+`/api/admin/*` et `GET /api/orders` exigent le jeton `ADMIN_TOKEN`
+(en-tête `Authorization: Bearer <jeton>`). Sans `ADMIN_TOKEN` configuré,
+elles répondent 503. Générer le jeton avec :
+`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+
+### Connexion Google / Apple
+
+- Google : l'identifiant et le secret viennent des réglages admin
+  (`POST /api/admin/google-settings`) ou, à défaut, de `GOOGLE_CLIENT_ID`
+  / `GOOGLE_CLIENT_SECRET`. Le code est échangé côté serveur, le compte
+  est retrouvé ou créé par courriel vérifié. Aucun identifiant n'est créé
+  par ce serveur.
+- Apple : le jeton d'identité est vérifié par la clé publique Apple
+  (JWKS) ; l'audience attendue est `APPLE_CLIENT_ID` (identifiant du
+  paquet iOS, par exemple `com.soukly.app`). Aucun secret Apple nécessaire.
+
+### Appels sortants
+
+Les appels vers Google, Apple et OpenAI passent par `src/http.js` avec
+un délai maximal de 15 s : un amont qui ne répond pas donne une erreur
+502 propre au lieu de bloquer la requête.
+
+## Données migrées
+
+`src/data/catalog.json` est l'export fidèle de l'appli web (action
+`listcatalog`, 2026-11-14) : **19 rayons, 67 produits** (24 disponibles
+avec prix, 43 à prix 0, « Prix fixé à l'inventaire du matin »). Les
+identifiants produits d'origine sont conservés pour la traçabilité.
+Les commandes passées ne sont pas migrées (restent dans l'appli web).
+
+## Limite connue (bac à sable uniquement)
+
+Dans ce bac à sable, les requêtes **POST vers
+`generativelanguage.googleapis.com`** (Gemini) restent sans réponse
+(vérifié en curl direct comme via le serveur), alors que les GET vers le
+même hôte répondent et que les POST vers `oauth2.googleapis.com` et
+`appleid.apple.com` fonctionnent. `POST /api/admin/ai/test-key` et
+`POST /api/admin/ai/describe-photo` répondent donc 502 (délai dépassé)
+ici, avec une fausse clé comme avec une vraie. Sur le serveur hébergé
+(en production, sans proxy de sortie), ces appels fonctionneront
+normalement. La logique a été vérifiée par ailleurs : le GET Gemini
+renvoie « API key not valid » avec une fausse clé, et la chaîne de
+secours des modèles est celle de l'appli web
+(`gemini-3.5-flash-lite` → `gemini-3.8-flash` → `gemini-3.5-flash`).
+
+Le mot de passe du proxy de sortie du bac à sable tourne : si les
+appels sortants (Google, IA) se mettent à dépasser le délai, redémarrer
+le serveur pour qu'il reprenne l'environnement frais.
+
+## Reste à faire (étapes suivantes)
+
+- Appli Flutter (squelette, boutique client, admin) — voir plan §3/§6.
+- Choix de l'hébergeur public + Postgres hébergée, puis déploiement.
+- Page de politique de confidentialité (obligatoire pour les boutiques).
