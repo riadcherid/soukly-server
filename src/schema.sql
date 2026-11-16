@@ -98,3 +98,13 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS prepared BOOLEAN NOT NULL DEFAULT 
 -- comptes existants) et horodatage d'envoi du reçu par e-mail.
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS email TEXT UNIQUE;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS receipt_email_sent_at TEXT;
+
+-- Évolutions v0.5.4 (idempotentes, rejouées à chaque démarrage) :
+-- unité de prix flexible par produit ('piece' | 'lb' | 'kg') et prix
+-- spécial (rayon Promotions). Les produits existants gardent leur unité
+-- actuelle (au poids → 'lb', à l'unité → 'piece'), aucun prix ne change.
+ALTER TABLE products ADD COLUMN IF NOT EXISTS price_unit TEXT;
+UPDATE products SET price_unit = CASE WHEN sold_by_weight THEN 'lb' ELSE 'piece' END WHERE price_unit IS NULL;
+ALTER TABLE products ALTER COLUMN price_unit SET DEFAULT 'piece';
+ALTER TABLE products ALTER COLUMN price_unit SET NOT NULL;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS on_special BOOLEAN NOT NULL DEFAULT FALSE;

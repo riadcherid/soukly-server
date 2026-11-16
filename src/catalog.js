@@ -7,6 +7,10 @@ import { photoUrl } from './photos.js';
 export const catalogRouter = Router();
 
 function toProduct(row) {
+  // Unité de prix : source de vérité pour « vendu au poids »
+  // ('lb' | 'kg' = au poids, 'piece' = à l'unité). Le repli sur la
+  // colonne historique ne sert que si price_unit est absent.
+  const priceUnit = row.price_unit || (row.sold_by_weight ? 'lb' : 'piece');
   return {
     id: row.id,
     name: row.name,
@@ -14,7 +18,9 @@ function toProduct(row) {
     category: row.category_key,
     unit: row.unit,
     price_cents: row.price_cents,
-    sold_by_weight: row.sold_by_weight === true,
+    price_unit: priceUnit,
+    sold_by_weight: priceUnit === 'lb' || priceUnit === 'kg',
+    on_special: row.on_special === true,
     available: row.available === true,
     image_key: row.image_key,
     photo_url: photoUrl(row.image_key),

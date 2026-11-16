@@ -25,7 +25,7 @@ La production utilisera Postgres hébergée (Supabase, Neon ou Railway)
 comme prévu dans le plan — même schéma, il suffira de changer
 `DATABASE_URL`.
 
-## Routes (v0.5.3)
+## Routes (v0.5.4)
 
 | Route | Rôle | Auth |
 |---|---|---|
@@ -50,10 +50,10 @@ comme prévu dans le plan — même schéma, il suffira de changer
 | `POST /api/admin/orders/{id}/resend-receipt` | Renvoyer le reçu par e-mail (client avec e-mail, reçu pas encore envoyé) | Admin |
 | `PATCH /api/orders/{id}/items/{itemId}/status` | Collecte : collecté / manquant (+ remplacement) | Admin |
 | `PATCH /api/orders/{id}/items/{itemId}/weight` | Poids réel pesé en grammes → montant final | Admin |
-| `POST /api/admin/products` | Ajouter / modifier un produit | Admin |
+| `POST /api/admin/products` | Ajouter / modifier un produit (`price_unit` : 'piece' \| 'lb' \| 'kg', `on_special` : prix spécial) | Admin |
 | `DELETE /api/admin/products/{id}` | Retirer un produit (409 s'il est dans une commande) | Admin |
 | `POST /api/admin/categories` | Ajouter / renommer un rayon | Admin |
-| `POST /api/admin/inventory` | Inventaire du matin (prix et dispos du jour) | Admin |
+| `POST /api/admin/inventory` | Inventaire du matin (prix et dispos du jour, unité `price_unit` et `on_special` facultatifs par produit) | Admin |
 | `GET /api/admin/ai-settings` | Réglages IA (clé masquée, jamais en clair) | Admin |
 | `POST /api/admin/ai-settings` | Enregistrer fournisseur IA + clé | Admin |
 | `POST /api/admin/ai/describe-photo` | Description IA en français depuis une photo | Admin |
@@ -68,6 +68,19 @@ comme prévu dans le plan — même schéma, il suffira de changer
 Frais (règles de Riad, 2026-11-14) : livraison 2,99 $ Saint-Laurent (H4L),
 4,99 $ reste de Montréal, 7,99 $ plus loin ; service 4,99 $ livraison /
 2,99 $ cueillette. Prix en cents, poids en grammes.
+
+### Unité de prix flexible et prix spécial (v0.5.4)
+
+- Chaque produit a une unité de prix `price_unit` : `'piece'` (vendu à
+  l'unité, prix à la pièce), `'lb'` ou `'kg'` (vendu au poids, prix stocké
+  au kg ; saisie/affichage en $/lb ou en $/kg). Le client qui achète au
+  poids entre toujours des grammes ; le total se calcule depuis le prix
+  au kg. `sold_by_weight` est dérivé de `price_unit` dans les réponses
+  (`'lb'` | `'kg'` = au poids).
+- `on_special` (booléen, défaut false) : un produit coché « Spécial »
+  reste dans son rayon d'origine ET apparaît dans le rayon « Promotions »
+  de la boutique (filtre côté client, badge « Spécial »). Pas d'ancien
+  prix ni de prix barré pour l'instant.
 
 ### Reçu de commande par e-mail (Gmail, v0.5.3)
 

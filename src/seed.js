@@ -26,17 +26,21 @@ export async function seedCatalog() {
       );
     }
     for (const p of catalog.products) {
+      // Unité de prix dérivée du poids (au poids → 'lb', sinon 'piece').
+      // On ne l'écrase jamais à la mise à jour : l'unité choisie à
+      // l'inventaire du matin (ex. 'kg') survit à un nouveau seed.
+      // Idem pour on_special (prix spécial), géré par l'admin.
       await db.run(
         `INSERT INTO products
-           (id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           (id, name, description, category_key, unit, price_cents, sold_by_weight, price_unit, available, image_key)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          ON CONFLICT (id) DO UPDATE SET
            name = EXCLUDED.name, description = EXCLUDED.description,
            category_key = EXCLUDED.category_key, unit = EXCLUDED.unit,
            price_cents = EXCLUDED.price_cents, sold_by_weight = EXCLUDED.sold_by_weight,
            available = EXCLUDED.available, image_key = EXCLUDED.image_key`,
         p.id, p.name, p.description, p.category, p.unit, p.price_cents,
-        p.sold_by_weight, p.available, p.image_key,
+        p.sold_by_weight, p.sold_by_weight ? 'lb' : 'piece', p.available, p.image_key,
       );
     }
     await db.run(

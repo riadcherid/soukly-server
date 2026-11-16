@@ -66,6 +66,10 @@ function maskSecret(secret) {
 }
 
 function toProduct(row) {
+  // Unité de prix : source de vérité pour « vendu au poids »
+  // ('lb' | 'kg' = au poids, 'piece' = à l'unité). Le repli sur la
+  // colonne historique ne sert que si price_unit est absent.
+  const priceUnit = row.price_unit || (row.sold_by_weight ? 'lb' : 'piece');
   return {
     id: row.id,
     name: row.name,
@@ -73,7 +77,9 @@ function toProduct(row) {
     category: row.category_key,
     unit: row.unit,
     price_cents: row.price_cents,
-    sold_by_weight: row.sold_by_weight === true,
+    price_unit: priceUnit,
+    sold_by_weight: priceUnit === 'lb' || priceUnit === 'kg',
+    on_special: row.on_special === true,
     prepared: row.prepared === true,
     available: row.available === true,
     image_key: row.image_key,
@@ -108,7 +114,16 @@ adminRouter.post('/products', async (req, res) => {
   if (!category) return res.status(400).json({ ok: false, error: 'category_not_found' });
 
   const price_cents = Math.max(0, Math.floor(Number(body.price_cents) || 0));
-  const sold_by_weight = body.sold_by_weight === true;
+  // Unité de prix : 'piece' | 'lb' | 'kg'. Si elle est absente (ancien
+  // client), on la déduit de sold_by_weight. Le poids se déduit de
+  // l'unité ('lb' | 'kg' = au poids) ; la colonne historique reste
+  // synchronisée pour les lectures internes (commandes, taxes).
+  const priceUnitRaw = String(body.price_unit || '').trim();
+  const price_unit = ['piece', 'lb', 'kg'].includes(priceUnitRaw)
+    ? priceUnitRaw
+    : (body.sold_by_weight === true ? 'lb' : 'piece');
+  const sold_by_weight = price_unit === 'lb' || price_unit === 'kg';
+  const on_special = body.on_special === true;
   const prepared = body.prepared === true;
   const available = body.available === true;
   const description = String(body.description || '').trim();
@@ -122,17 +137,17 @@ adminRouter.post('/products', async (req, res) => {
       const result = await run(
         `UPDATE products SET name = $1, description = $2, category_key = $3, unit = $4,
            price_cents = $5, sold_by_weight = $6, available = $7, image_key = $8,
-           prepared = $9
-         WHERE id = $10 RETURNING *`,
-        name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, id,
+           prepared = $9, price_unit = $10, on_special = $11
+         WHERE id = $12 RETURNING *`,
+        name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special, id,
       );
       product = result.rows[0];
     } else {
       const result = await run(
         `INSERT INTO products
-           (id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-        id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared,
+           (id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+        id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special,
       );
       product = result.rows[0];
     }
@@ -140,9 +155,9 @@ adminRouter.post('/products', async (req, res) => {
     const next = await get('SELECT COALESCE(MAX(id), 0) + 1 AS id FROM products');
     const result = await run(
       `INSERT INTO products
-         (id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      next.id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared,
+         (id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+      next.id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special,
     );
     product = result.rows[0];
   }
@@ -195,7 +210,9 @@ adminRouter.post('/categories', async (req, res) => {
 // --- Inventaire du matin ---
 
 // POST /api/admin/inventory — prix et dispos du jour.
-// Corps : { date?, note?, prices: [{ product_id, price_cents, available? }] }
+// Corps : { date?, note?, prices: [{ product_id, price_cents, available?,
+//   price_unit?, on_special? }] } — l'unité ('piece' | 'lb' | 'kg') et le
+// prix spécial sont facultatifs (un ancien client ne les envoie pas).
 adminRouter.post('/inventory', async (req, res) => {
   const body = req.body || {};
   const prices = body.prices;
@@ -209,14 +226,31 @@ adminRouter.post('/inventory', async (req, res) => {
     if (!Number.isInteger(product_id) || !Number.isInteger(price_cents) || price_cents < 0) {
       return res.status(400).json({ ok: false, error: 'price_invalid', product_id });
     }
+    const priceUnitRaw = p?.price_unit != null ? String(p.price_unit).trim() : null;
+    if (priceUnitRaw != null && !['piece', 'lb', 'kg'].includes(priceUnitRaw)) {
+      return res.status(400).json({ ok: false, error: 'price_unit_invalid', product_id });
+    }
     const product = await get('SELECT id FROM products WHERE id = $1', product_id);
     if (!product) {
       return res.status(400).json({ ok: false, error: 'product_not_found', product_id });
     }
     const available = p?.available === undefined ? price_cents > 0 : p.available === true;
+    const sets = ['price_cents = $1', 'available = $2'];
+    const params = [price_cents, available];
+    if (priceUnitRaw != null) {
+      sets.push(`price_unit = $${params.length + 1}`);
+      params.push(priceUnitRaw);
+      sets.push(`sold_by_weight = $${params.length + 1}`);
+      params.push(priceUnitRaw === 'lb' || priceUnitRaw === 'kg');
+    }
+    if (p?.on_special !== undefined) {
+      sets.push(`on_special = $${params.length + 1}`);
+      params.push(p.on_special === true);
+    }
+    params.push(product_id);
     await run(
-      'UPDATE products SET price_cents = $1, available = $2 WHERE id = $3',
-      price_cents, available, product_id,
+      `UPDATE products SET ${sets.join(', ')} WHERE id = $${params.length}`,
+      ...params,
     );
     updated += 1;
   }
