@@ -8,14 +8,26 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { get, run } from './db.js';
-import { isValidEmail, normalizeEmail } from './email.js';
+import { isValidEmail, normalizeEmail, receiptEmailForCustomer } from './email.js';
 import { photoUrl, photoUpload, photoUploadError } from './photos.js';
+import {
+  isLoginBlocked,
+  maskEmail,
+  recordLoginFailure,
+  requestVerificationCode,
+  resetLoginFailures,
+  verifyCode,
+} from './verification.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 if (!process.env.JWT_SECRET) {
   console.warn('[auth] JWT_SECRET non défini — secret de développement utilisé.');
 }
 const JWT_EXPIRES_IN = '30d';
+
+// Mot de passe des nouveaux comptes : 8 caractères minimum
+// (vérification par e-mail, sécurité maximale).
+const PASSWORD_MIN_LENGTH = 8;
 
 function normalizePhone(phone) {
   return String(phone || '').replace(/\D/g, '');
@@ -86,45 +98,152 @@ export async function requireAuth(req, res, next) {
 
 export const authRouter = Router();
 
+/// Champs d'inscription normalisés depuis le corps de la requête.
+function registrationFields(body) {
+  return {
+    // Le nom complet est facultatif : le nom d'utilisateur suffit.
+    name: String(body?.name || '').trim() || null,
+    username: normalizeUsername(body?.username),
+    phone: normalizePhone(body?.phone),
+    password: String(body?.password || ''),
+    // E-mail obligatoire à l'inscription (reçu de commande, comme Uber).
+    email: normalizeEmail(body?.email),
+  };
+}
+
+/// Validation des champs d'inscription : renvoie le code d'erreur ou
+/// null quand tout est valide (mêmes règles qu'avant, sauf le mot de
+/// passe : 8 caractères minimum désormais).
+function registrationFieldError({ username, phone, email, password }) {
+  if (!isValidUsername(username)) return 'username_invalid';
+  if (phone.length < 10) return 'phone_invalid';
+  if (!isValidEmail(email)) return 'email_invalid';
+  if (password.length < PASSWORD_MIN_LENGTH) return 'password_too_short';
+  return null;
+}
+
+/// Unicités d'inscription : renvoie le code d'erreur ou null.
+async function registrationUniquenessError({ username, phone, email }) {
+  const existingUsername = await get(
+    'SELECT id FROM customers WHERE username = $1',
+    username,
+  );
+  if (existingUsername) return 'username_taken';
+  const existing = await get(
+    'SELECT id FROM customers WHERE phone = $1',
+    phone,
+  );
+  if (existing) return 'phone_already_registered';
+  const existingEmail = await get(
+    'SELECT id FROM customers WHERE email = $1',
+    email,
+  );
+  if (existingEmail) return 'email_already_registered';
+  return null;
+}
+
+/// Statut HTTP d'une erreur de vérification de code : 400, sauf trop
+/// d'essais (429).
+function codeErrorStatus(error) {
+  return error === 'code_too_many_attempts' ? 429 : 400;
+}
+
+/// Retrouve un compte par son identifiant : e-mail, téléphone ou nom
+/// d'utilisateur. Le téléphone ne sert que de repli pour les comptes
+/// anciens sans e-mail ni nom d'utilisateur (ex. le compte de Riad :
+/// téléphone + nom seulement) — un compte qui a un e-mail ou un nom
+/// d'utilisateur ne se connecte plus par téléphone. Renvoie la ligne
+/// `customers` ou null.
+async function findCustomerByIdentifier(identifier) {
+  const id = String(identifier ?? '').trim();
+  if (id.includes('@')) {
+    // E-mail (normalisé : minuscules + trim).
+    return get(
+      'SELECT * FROM customers WHERE email = $1',
+      normalizeEmail(id),
+    );
+  }
+  if (normalizePhone(id).length >= 10) {
+    const customer = await get(
+      'SELECT * FROM customers WHERE phone = $1',
+      normalizePhone(id),
+    );
+    if (customer && (customer.email || customer.username)) return null;
+    return customer;
+  }
+  // Nom d'utilisateur (insensible à la casse).
+  return get(
+    'SELECT * FROM customers WHERE username = $1',
+    normalizeUsername(id),
+  );
+}
+
+// POST /api/auth/register — ÉTAPE 1 de l'inscription : valide les
+// champs (comme avant) puis envoie le code de vérification par e-mail.
+// Ne crée PAS le compte : la création attend
+// POST /api/auth/register/verify. Renvoyer la même demande renvoie un
+// nouveau code (60 s minimum entre deux envois, 5 codes/heure max).
 authRouter.post('/auth/register', async (req, res) => {
-  // Le nom complet est facultatif : le nom d'utilisateur suffit.
-  const name = String(req.body?.name || '').trim() || null;
-  const username = normalizeUsername(req.body?.username);
-  const phone = normalizePhone(req.body?.phone);
-  const password = String(req.body?.password || '');
-  // E-mail obligatoire à l'inscription (reçu de commande, comme Uber).
-  const email = normalizeEmail(req.body?.email);
+  const fields = registrationFields(req.body);
+  const fieldError = registrationFieldError(fields);
+  if (fieldError) {
+    return res.status(400).json({ ok: false, error: fieldError });
+  }
+  const uniquenessError = await registrationUniquenessError(fields);
+  if (uniquenessError) {
+    return res.status(409).json({ ok: false, error: uniquenessError });
+  }
+  const requested = await requestVerificationCode(fields.email, 'register');
+  if (!requested.ok) {
+    if (requested.error === 'code_resend_too_soon') {
+      return res.status(429).json({
+        ok: false,
+        error: requested.error,
+        retry_after_seconds: requested.retry_after_seconds,
+      });
+    }
+    if (requested.error === 'code_rate_limited') {
+      return res.status(429).json({ ok: false, error: requested.error });
+    }
+    // email_not_configured / email_send_failed : l'e-mail n'a pas pu
+    // partir (configuration serveur).
+    return res.status(502).json({ ok: false, error: requested.error });
+  }
+  return res.json({ ok: true, code_sent: true });
+});
 
-  if (!isValidUsername(username)) {
-    return res.status(400).json({ ok: false, error: 'username_invalid' });
+// POST /api/auth/register/verify — ÉTAPE 2 : re-valide les champs +
+// unicités, vérifie le code, puis crée le compte (même INSERT
+// qu'avant) et renvoie { token, customer } comme l'ancien register.
+authRouter.post('/auth/register/verify', async (req, res) => {
+  const fields = registrationFields(req.body);
+  const code = String(req.body?.code || '').trim();
+  const fieldError = registrationFieldError(fields);
+  if (fieldError) {
+    return res.status(400).json({ ok: false, error: fieldError });
   }
-  if (phone.length < 10) return res.status(400).json({ ok: false, error: 'phone_invalid' });
-  if (!isValidEmail(email)) {
-    return res.status(400).json({ ok: false, error: 'email_invalid' });
+  const uniquenessError = await registrationUniquenessError(fields);
+  if (uniquenessError) {
+    return res.status(409).json({ ok: false, error: uniquenessError });
   }
-  if (password.length < 6) {
-    return res.status(400).json({ ok: false, error: 'password_too_short' });
+  const verified = await verifyCode(fields.email, 'register', code);
+  if (!verified.ok) {
+    return res
+      .status(codeErrorStatus(verified.error))
+      .json({ ok: false, error: verified.error });
   }
-
-  const existingUsername = await get('SELECT id FROM customers WHERE username = $1', username);
-  if (existingUsername) {
-    return res.status(409).json({ ok: false, error: 'username_taken' });
-  }
-  const existing = await get('SELECT id FROM customers WHERE phone = $1', phone);
-  if (existing) {
-    return res.status(409).json({ ok: false, error: 'phone_already_registered' });
-  }
-  const existingEmail = await get('SELECT id FROM customers WHERE email = $1', email);
-  if (existingEmail) {
-    return res.status(409).json({ ok: false, error: 'email_already_registered' });
-  }
-
-  const password_hash = bcrypt.hashSync(password, 10);
+  const password_hash = bcrypt.hashSync(fields.password, 10);
   const created_at = new Date().toISOString();
   const result = await run(
     `INSERT INTO customers (name, username, phone, email, password_hash, auth_provider, created_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    name, username, phone, email, password_hash, 'password', created_at,
+    fields.name,
+    fields.username,
+    fields.phone,
+    fields.email,
+    password_hash,
+    'password',
+    created_at,
   );
   const customer = result.rows[0];
   return res.status(201).json({
@@ -137,44 +256,78 @@ authRouter.post('/auth/register', async (req, res) => {
 authRouter.post('/auth/login', async (req, res) => {
   // Identifiant unique : nom d'utilisateur OU e-mail. Le téléphone
   // reste accepté côté serveur comme repli pour les comptes anciens
-  // sans e-mail ni nom d'utilisateur (voir ci-dessous) ; `phone`
-  // reste aussi accepté en entrée pour l'ancien client.
+  // sans e-mail ni nom d'utilisateur (voir findCustomerByIdentifier) ;
+  // `phone` reste aussi accepté en entrée pour l'ancien client.
   const identifier = String(req.body?.identifier ?? req.body?.phone ?? '').trim();
   const password = String(req.body?.password || '');
-  let customer = null;
-  if (identifier.includes('@')) {
-    // E-mail (normalisé : minuscules + trim).
-    customer = await get(
-      'SELECT * FROM customers WHERE email = $1',
-      normalizeEmail(identifier),
-    );
-  } else if (normalizePhone(identifier).length >= 10) {
-    // Téléphone — REPLI UNIQUEMENT pour les comptes anciens qui n'ont
-    // ni e-mail ni nom d'utilisateur (ex. le compte de Riad : téléphone
-    // + nom seulement). Un compte qui a un e-mail ou un nom
-    // d'utilisateur ne se connecte plus par téléphone : il doit
-    // utiliser son nom d'utilisateur ou son e-mail. Ce repli n'est
-    // pas proposé dans l'appli ; il évite juste de bloquer dehors les
-    // comptes créés avant le nom d'utilisateur.
-    customer = await get(
-      'SELECT * FROM customers WHERE phone = $1',
-      normalizePhone(identifier),
-    );
-    if (customer && (customer.email || customer.username)) customer = null;
-  } else {
-    // Nom d'utilisateur (insensible à la casse).
-    customer = await get(
-      'SELECT * FROM customers WHERE username = $1',
-      normalizeUsername(identifier),
-    );
+  // Blocage après 10 mots de passe faux en 15 min (même identifiant).
+  if (isLoginBlocked(identifier)) {
+    return res.status(429).json({ ok: false, error: 'too_many_attempts' });
   }
+  const customer = await findCustomerByIdentifier(identifier);
   // Même erreur générique dans tous les cas : on ne révèle jamais si
   // c'est l'identifiant ou le mot de passe qui est faux.
   if (!customer || !customer.password_hash) {
+    recordLoginFailure(identifier);
     return res.status(401).json({ ok: false, error: 'invalid_credentials' });
   }
   if (!bcrypt.compareSync(password, customer.password_hash)) {
+    recordLoginFailure(identifier);
     return res.status(401).json({ ok: false, error: 'invalid_credentials' });
+  }
+  resetLoginFailures(identifier);
+  const email = receiptEmailForCustomer(customer);
+  if (!email) {
+    // Compte ancien sans e-mail (repli) : pas de code, jeton direct
+    // comme avant.
+    return res.json({
+      ok: true,
+      token: signToken(customer),
+      customer: publicCustomer(customer),
+    });
+  }
+  // Le mot de passe est bon : on envoie le code de connexion. Le jeton
+  // n'est remis qu'après POST /api/auth/login/verify. Renvoyer la même
+  // demande renvoie un nouveau code (60 s minimum, 5 codes/heure max).
+  const requested = await requestVerificationCode(email, 'login');
+  if (!requested.ok) {
+    if (requested.error === 'code_resend_too_soon') {
+      return res.status(429).json({
+        ok: false,
+        error: requested.error,
+        retry_after_seconds: requested.retry_after_seconds,
+      });
+    }
+    if (requested.error === 'code_rate_limited') {
+      return res.status(429).json({ ok: false, error: requested.error });
+    }
+    return res.status(502).json({ ok: false, error: requested.error });
+  }
+  return res.json({
+    ok: true,
+    needs_code: true,
+    email_masked: maskEmail(email),
+  });
+});
+
+// POST /api/auth/login/verify — vérifie le code de connexion puis
+// remet le jeton (mot de passe déjà vérifié à l'étape précédente).
+authRouter.post('/auth/login/verify', async (req, res) => {
+  const identifier = String(req.body?.identifier ?? '').trim();
+  const code = String(req.body?.code || '').trim();
+  const customer = await findCustomerByIdentifier(identifier);
+  if (!customer || !customer.password_hash) {
+    return res.status(401).json({ ok: false, error: 'invalid_credentials' });
+  }
+  const email = receiptEmailForCustomer(customer);
+  if (!email) {
+    return res.status(401).json({ ok: false, error: 'invalid_credentials' });
+  }
+  const verified = await verifyCode(email, 'login', code);
+  if (!verified.ok) {
+    return res
+      .status(codeErrorStatus(verified.error))
+      .json({ ok: false, error: verified.error });
   }
   return res.json({
     ok: true,
@@ -308,11 +461,11 @@ authRouter.post('/auth/me/photo', requireAuth, (req, res) => {
 // POST /api/auth/change-password — changer son mot de passe (JWT
 // client). Le mot de passe actuel doit être correct, sinon erreur
 // générique ; le nouveau respecte la même longueur minimale qu'à
-// l'inscription (6 caractères).
+// l'inscription (8 caractères).
 authRouter.post('/auth/change-password', requireAuth, async (req, res) => {
   const currentPassword = String(req.body?.current_password || '');
   const newPassword = String(req.body?.new_password || '');
-  if (newPassword.length < 6) {
+  if (newPassword.length < PASSWORD_MIN_LENGTH) {
     return res.status(400).json({ ok: false, error: 'password_too_short' });
   }
   if (!req.customer.password_hash ||

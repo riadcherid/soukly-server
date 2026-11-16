@@ -21,6 +21,9 @@
 // nodemailer génère le message en mémoire (transport JSON). Le chemin
 // Brevo, lui, appelle toujours la vraie API (port 443).
 import nodemailer from 'nodemailer';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { all, get, run } from './db.js';
 import { fetchJson } from './http.js';
 
@@ -70,7 +73,7 @@ function formatDateFr(iso) {
   }
 }
 
-function escapeHtml(text) {
+export function escapeHtml(text) {
   return String(text ?? '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -180,6 +183,53 @@ export function buildReceiptEmail({ order, items, customerName }) {
   };
 }
 
+/// Construit l'e-mail de vérification (code à 6 chiffres, en français).
+/// `purpose` : 'register' (création du compte) ou 'login' (connexion).
+/// Le code n'apparaît qu'ici, dans le message envoyé au client — jamais
+/// dans les journaux ni dans les réponses de l'API.
+export function buildVerificationCodeEmail({ purpose, code }) {
+  const isRegister = purpose === 'register';
+  const subject = isRegister
+    ? 'Soukly — Votre code de vérification'
+    : 'Soukly — Code de connexion';
+  const intro = isRegister
+    ? `Pour créer votre compte Soukly, entrez ce code dans l'appli :`
+    : `Pour vous connecter à Soukly, entrez ce code dans l'appli :`;
+  const warning = isRegister
+    ? `Si vous n'avez pas demandé ce code, ignorez ce message.`
+    : `Si vous n'avez pas demandé ce code, ignorez ce message et vérifiez la sécurité de votre compte.`;
+  const textLines = [
+    `Soukly — Votre marché partout`,
+    ``,
+    `Bonjour,`,
+    ``,
+    intro,
+    ``,
+    `${code}`,
+    ``,
+    `Ce code est valable 10 minutes, pour une seule utilisation. Ne le partagez avec personne.`,
+    warning,
+    ``,
+    `À bientôt chez Soukly !`,
+  ];
+  const html = `
+  <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#222;">
+    <div style="background:#D32F2F;color:#fff;padding:16px 20px;border-radius:8px 8px 0 0;">
+      <div style="font-size:24px;font-weight:bold;">Soukly</div>
+      <div style="font-size:14px;">Votre marché partout</div>
+    </div>
+    <div style="border:1px solid #eee;border-top:none;padding:20px;border-radius:0 0 8px 8px;">
+      <p style="margin:0 0 16px;">Bonjour,</p>
+      <p style="margin:0 0 16px;">${escapeHtml(intro)}</p>
+      <p style="margin:0 0 16px;text-align:center;font-size:36px;font-weight:bold;letter-spacing:8px;color:#D32F2F;">${escapeHtml(code)}</p>
+      <p style="margin:0 0 8px;color:#555;">Ce code est valable 10 minutes, pour une seule utilisation. Ne le partagez avec personne.</p>
+      <p style="margin:0;color:#555;">${escapeHtml(warning)}</p>
+      <p style="margin:20px 0 0;color:#666;font-size:13px;">Merci — à bientôt chez Soukly !</p>
+    </div>
+  </div>`;
+  return { subject, text: textLines.join('\n'), html };
+}
+
 export function emailSettingsFromStore(stored) {
   return {
     smtp_user: stored?.smtp_user || process.env.SMTP_USER || '',
@@ -277,9 +327,29 @@ async function sendViaBrevo({ settings, to, subject, text, html }) {
 
 /// Envoie un e-mail : Brevo (HTTPS) si une clé API est configurée,
 /// sinon Gmail SMTP (repli dev local).
-async function sendMail({ settings, to, subject, text, html }) {
+///
+/// Dev local uniquement : avec EMAIL_TEST_TRANSPORT=json, chaque e-mail
+/// envoyé est aussi copié dans un fichier outbox local (jamais en
+/// production — la variable n'y est pas définie). Les tests (curl et
+/// Flutter) y lisent le code de vérification : le code n'est jamais
+/// renvoyé en clair par l'API ni journalisé.
+function captureTestEmail({ to, subject, text }) {
+  if (process.env.EMAIL_TEST_TRANSPORT !== 'json') return;
+  try {
+    const outbox =
+      process.env.EMAIL_TEST_OUTBOX ||
+      path.join(os.tmpdir(), 'soukly-test-outbox.jsonl');
+    fs.appendFileSync(outbox, `${JSON.stringify({ to, subject, text })}\n`);
+  } catch {
+    // L'envoi ne doit jamais échouer à cause de l'outbox.
+  }
+}
+
+export async function sendMail({ settings, to, subject, text, html }) {
   if (settings.brevo_api_key) {
-    return sendViaBrevo({ settings, to, subject, text, html });
+    const result = await sendViaBrevo({ settings, to, subject, text, html });
+    captureTestEmail({ to, subject, text });
+    return result;
   }
   const transport = createMailTransport(settings);
   const fromName = settings.smtp_from_name || 'Soukly';
@@ -291,12 +361,16 @@ async function sendMail({ settings, to, subject, text, html }) {
     html,
   };
   try {
-    return await transport.sendMail(mail);
+    const info = await transport.sendMail(mail);
+    captureTestEmail({ to, subject, text });
+    return info;
   } catch (err) {
     if (!isConnectTimeout(err)) throw err;
     console.error('[email] délai de connexion SMTP, nouvel essai…');
     await sleep(2000);
-    return transport.sendMail(mail);
+    const info = await transport.sendMail(mail);
+    captureTestEmail({ to, subject, text });
+    return info;
   }
 }
 

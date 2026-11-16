@@ -25,7 +25,7 @@ La production utilisera Postgres hébergée (Supabase, Neon ou Railway)
 comme prévu dans le plan — même schéma, il suffira de changer
 `DATABASE_URL`.
 
-## Routes (v0.5.9)
+## Routes (v0.6.0)
 
 | Route | Rôle | Auth |
 |---|---|---|
@@ -34,8 +34,10 @@ comme prévu dans le plan — même schéma, il suffira de changer
 | `GET /api/catalog` | Rayons, produits, prix et dispos, inventaire du matin | — |
 | `GET /api/images/:key` | Servir une photo produit uploadée (lecture publique) | — |
 | `POST /api/admin/upload-photo` | Envoyer une photo produit (multipart, JPEG/PNG/WebP, max 5 Mo) | Admin |
-| `POST /api/auth/register` | Compte client (nom d'utilisateur, téléphone, e-mail, mot de passe — les 4 obligatoires ; nom complet facultatif) | — |
-| `POST /api/auth/login` | Connexion nom d'utilisateur ou e-mail + mot de passe (repli téléphone pour les comptes anciens, voir ci-dessous) | — |
+| `POST /api/auth/register` | Envoie le code de vérification par e-mail (nom d'utilisateur, téléphone, e-mail, mot de passe — les 4 obligatoires, 8 car. min ; nom complet facultatif). **Ne crée pas le compte** — voir `register/verify`. | — |
+| `POST /api/auth/register/verify` | Vérifie le code reçu par e-mail, puis crée le compte (retourne `token` + `customer`, 201) | — |
+| `POST /api/auth/login` | Connexion nom d'utilisateur ou e-mail + mot de passe (repli téléphone pour les comptes anciens, voir ci-dessous) — si le mot de passe est bon et que le compte a un e-mail, envoie le code de connexion et retourne `needs_code: true` **sans jeton** ; si le compte n'a pas d'e-mail, retourne le jeton directement | — |
+| `POST /api/auth/login/verify` | Vérifie le code de connexion reçu par e-mail (retourne `token` + `customer`) | — |
 | `POST /api/auth/logout` | Déconnexion (jeton JWT sans état : le client jette son jeton) | — |
 | `GET /api/auth/me` | Client connecté (nom, nom d'utilisateur, téléphone, e-mail, date d'inscription, photo, description, adresse + code postal par défaut) | Bearer (client) |
 | `PATCH /api/auth/me` | Modifier son profil : e-mail et/ou nom d'utilisateur (validés, uniques), description (200 car. max), adresse de livraison par défaut, code postal (format A1A 1A1) — une chaîne vide efface le champ | Bearer (client) |
@@ -111,6 +113,60 @@ Frais (règles de Riad, 2026-11-14) : livraison 2,99 $ Saint-Laurent (H4L),
   uniques) pour les comptes existants sans e-mail ni nom d'utilisateur,
   ainsi que `bio` (200 car. max), `address` et `postal_code` (format
   A1A 1A1) — voir « Profil client (v0.5.7) » ci-dessous.
+
+### Vérification par e-mail (v0.6.0)
+
+- À l'inscription comme à chaque connexion, un code à 6 chiffres est
+  envoyé par e-mail et doit être saisi dans l'appli — c'est ce qui
+  prouve qu'il s'agit d'une vraie personne (l'inscription ne vérifiait
+  que le format de l'e-mail). La connexion Google / Apple n'a pas de
+  code : l'e-mail y est déjà vérifié par Google / Apple. Les comptes
+  anciens sans e-mail (repli téléphone) n'ont pas de code non plus :
+  le jeton est retourné directement.
+- Flux inscription : `POST /api/auth/register` valide les champs et
+  les unicités exactement comme avant (nom d'utilisateur 3–30,
+  téléphone ≥ 10 chiffres, e-mail valide, **mot de passe 8 car. min**
+  — erreur `password_too_short`), puis envoie le code et retourne
+  `{ok: true, code_sent: true}` (200). **Aucun compte n'est créé, aucun
+  jeton n'est retourné.** `POST /api/auth/register/verify` (mêmes
+  champs + `code`) re-valide tout, vérifie le code, puis crée le
+  compte et retourne `{ok, token, customer}` (201) comme l'ancien
+  register.
+- Flux connexion : `POST /api/auth/login` vérifie le mot de passe
+  comme avant (`invalid_credentials` si faux, **sans envoyer de
+  code**). Si le mot de passe est bon et que le compte a un e-mail :
+  envoie le code et retourne `{ok: true, needs_code: true,
+  email_masked}` — e-mail masqué côté serveur (« r***@gmail.com ») —
+  **sans jeton**. `POST /api/auth/login/verify` (`identifier` +
+  `code`) vérifie le code et retourne `{ok, token, customer}`.
+- Règles du code (table `email_verification_codes`, migration
+  idempotente dans `schema.sql`) : 6 chiffres, valable **10 minutes**,
+  **usage unique**, 5 essais maximum puis le code est invalidé
+  (erreur `code_too_many_attempts`). Le code est stocké **haché
+  (SHA-256) uniquement** — jamais en clair, jamais dans les logs ni
+  dans les réponses API. Erreurs : faux code → `invalid_code`, expiré
+  → `code_expired`, déjà utilisé → `invalid_code`.
+- Renvoi : un nouveau code **invalide les anciens non utilisés**
+  (même e-mail + même purpose `register` / `login`). 60 s minimum
+  entre deux envois (429 `code_resend_too_soon` +
+  `retry_after_seconds`), 5 codes maximum par e-mail et par heure
+  (429 `code_rate_limited`). Si l'envoi de l'e-mail échoue, le code
+  généré est supprimé (502 `email_send_failed` ou
+  `email_not_configured`).
+- E-mails en français via `sendMail` (Brevo si configuré, sinon SMTP
+  Gmail) : inscription « Soukly — Votre code de vérification »,
+  connexion « Soukly — Code de connexion » — code bien visible,
+  valable 10 minutes.
+- Mot de passe : après **10 échecs** pour le même identifiant en
+  15 minutes, la connexion est bloquée (429 `too_many_attempts`,
+  compteur en mémoire serveur). Le changement de mot de passe
+  (`POST /api/auth/change-password`) garde son minimum de 6 car.
+- Dev local uniquement : avec `EMAIL_TEST_TRANSPORT=json`, chaque
+  e-mail envoyé est aussi ajouté à `$EMAIL_TEST_OUTBOX` ou
+  `/tmp/soukly-test-outbox.jsonl` (une ligne JSON par e-mail :
+  `{to, subject, text}`) — c'est comme ça que les tests lisent le
+  code. Ne jamais activer ce mode en production : les codes y sont
+  lisibles en clair.
 
 ### Profil client (v0.5.7)
 

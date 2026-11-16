@@ -157,3 +157,22 @@ ALTER TABLE customers ADD COLUMN IF NOT EXISTS photo_key TEXT;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS bio TEXT;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS address TEXT;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS postal_code TEXT;
+
+-- Évolutions v0.6.0 (idempotentes, rejouées à chaque démarrage) :
+-- vérification par e-mail (code à 6 chiffres) à l'inscription et à
+-- chaque connexion : seul le hash SHA-256 du code est stocké, jamais
+-- le code en clair ; code valable 10 minutes, usage unique, 5 essais
+-- max, puis invalidé. Un nouveau code invalide les anciens non utilisés
+-- (même e-mail + même but).
+CREATE TABLE IF NOT EXISTS email_verification_codes (
+  id SERIAL PRIMARY KEY,
+  email TEXT NOT NULL,
+  purpose TEXT NOT NULL CHECK (purpose IN ('register', 'login')),
+  code_hash TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  used_at TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_evc_email_purpose_created
+  ON email_verification_codes (email, purpose, created_at);
