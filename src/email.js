@@ -1,8 +1,15 @@
-// Reçu de commande par e-mail (comme Uber) — envoi via Gmail SMTP
-// (smtp.gmail.com:587, STARTTLS) avec un mot de passe d'application
-// Google. La configuration vit dans la table `settings` (clé `email`) :
-// smtp_user (adresse Gmail), smtp_app_password (masqué, jamais renvoyé
-// en clair), smtp_from_name (« Soukly »).
+// Reçu de commande par e-mail (comme Uber) — envoi via l'API HTTPS
+// Brevo (api.brevo.com, port 443) quand une clé API Brevo est
+// configurée : Render gratuit bloque tous les ports SMTP sortants
+// (25/465/587), donc Gmail SMTP y échoue toujours en « Connection
+// timeout ». Brevo gratuit : 300 e-mails/jour, sans domaine — il faut
+// juste vérifier l'adresse Gmail de l'expéditeur dans Brevo.
+// Repli (dev local) : Gmail SMTP (smtp.gmail.com:587, STARTTLS) avec
+// un mot de passe d'application Google, quand aucune clé Brevo n'est
+// configurée. La configuration vit dans la table `settings` (clé
+// `email`) : smtp_user (adresse Gmail expéditrice), brevo_api_key
+// (masquée, jamais renvoyée en clair), smtp_app_password (repli SMTP),
+// smtp_from_name (« Soukly »).
 //
 // Le reçu part quand une commande est marquée « terminee » (une seule
 // fois : `receipt_email_sent_at` n'est mis que si l'envoi réussit).
@@ -10,11 +17,12 @@
 // statut, il est seulement journalisé.
 //
 // Dev local uniquement : avec la variable d'environnement
-// EMAIL_TEST_TRANSPORT=json, l'envoi ne touche pas Gmail — nodemailer
-// génère le message en mémoire (transport JSON). Sur Render (sans cette
-// variable), c'est le vrai Gmail qui est utilisé.
+// EMAIL_TEST_TRANSPORT=json, l'envoi SMTP ne touche pas Gmail —
+// nodemailer génère le message en mémoire (transport JSON). Le chemin
+// Brevo, lui, appelle toujours la vraie API (port 443).
 import nodemailer from 'nodemailer';
 import { all, get, run } from './db.js';
+import { fetchJson } from './http.js';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -177,6 +185,7 @@ export function emailSettingsFromStore(stored) {
     smtp_user: stored?.smtp_user || process.env.SMTP_USER || '',
     smtp_app_password:
       stored?.smtp_app_password || process.env.SMTP_APP_PASSWORD || '',
+    brevo_api_key: stored?.brevo_api_key || process.env.BREVO_API_KEY || '',
     smtp_from_name: stored?.smtp_from_name || 'Soukly',
   };
 }
@@ -230,7 +239,48 @@ function isConnectTimeout(err) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/// Envoi via l'API Brevo (HTTPS, port 443 — jamais bloqué par Render).
+/// Lève une erreur avec le message réel de Brevo (ex. clé invalide →
+/// 401 « Invalid API key », expéditeur non vérifié → 400).
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
+
+async function sendViaBrevo({ settings, to, subject, text, html }) {
+  const { status, ok, data } = await fetchJson(
+    BREVO_API_URL,
+    {
+      method: 'POST',
+      headers: {
+        'api-key': settings.brevo_api_key,
+        'Content-Type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender: {
+          name: settings.smtp_from_name || 'Soukly',
+          email: settings.smtp_user,
+        },
+        to: [{ email: to }],
+        subject,
+        textContent: text,
+        htmlContent: html,
+      }),
+    },
+    30000,
+  );
+  if (!ok) {
+    const message =
+      data?.message || data?.code || `Brevo : erreur HTTP ${status}`;
+    throw new Error(message);
+  }
+  return data;
+}
+
+/// Envoie un e-mail : Brevo (HTTPS) si une clé API est configurée,
+/// sinon Gmail SMTP (repli dev local).
 async function sendMail({ settings, to, subject, text, html }) {
+  if (settings.brevo_api_key) {
+    return sendViaBrevo({ settings, to, subject, text, html });
+  }
   const transport = createMailTransport(settings);
   const fromName = settings.smtp_from_name || 'Soukly';
   const mail = {
@@ -251,10 +301,16 @@ async function sendMail({ settings, to, subject, text, html }) {
 }
 
 /// Envoie un e-mail de test à l'adresse Gmail configurée.
-/// Renvoie { ok, to } ou { ok: false, error } (message réel de Gmail).
+/// Renvoie { ok, to } ou { ok: false, error } (message réel de Brevo
+/// ou de Gmail). Via Brevo, seul l'expéditeur est requis (la clé fait
+/// foi) ; via SMTP, le mot de passe d'application l'est aussi.
 export async function sendTestEmail() {
   const settings = await getEmailSettings();
-  if (!settings.smtp_user || !settings.smtp_app_password) {
+  const viaBrevo = Boolean(settings.brevo_api_key);
+  const configured = viaBrevo
+    ? Boolean(settings.smtp_user)
+    : Boolean(settings.smtp_user && settings.smtp_app_password);
+  if (!configured) {
     return { ok: false, error: 'email_not_configured' };
   }
   try {
@@ -290,9 +346,10 @@ async function loadOrderForReceipt(orderId) {
 
 /// Envoie le reçu d'une commande au client (une seule fois).
 /// Renvoie { ok, sent, reason } — `sent` faux si rien n'a été envoyé
-/// (pas d'e-mail client, pas de config SMTP, déjà envoyé, commande
+/// (pas d'e-mail client, pas de config e-mail, déjà envoyé, commande
 /// introuvable). Ne lève jamais : l'appelant (déclencheur) ne doit pas
-/// échouer à cause de l'e-mail.
+/// échouer à cause de l'e-mail. Via Brevo, seul l'expéditeur est requis
+/// ; via SMTP, le mot de passe d'application l'est aussi.
 export async function sendOrderReceipt(orderId) {
   try {
     const loaded = await loadOrderForReceipt(orderId);
@@ -307,7 +364,11 @@ export async function sendOrderReceipt(orderId) {
     });
     if (!to) return { ok: false, sent: false, reason: 'no_customer_email' };
     const settings = await getEmailSettings();
-    if (!settings.smtp_user || !settings.smtp_app_password) {
+    const viaBrevo = Boolean(settings.brevo_api_key);
+    const configured = viaBrevo
+      ? Boolean(settings.smtp_user)
+      : Boolean(settings.smtp_user && settings.smtp_app_password);
+    if (!configured) {
       return { ok: false, sent: false, reason: 'email_not_configured' };
     }
     const mail = buildReceiptEmail({

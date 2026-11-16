@@ -25,7 +25,7 @@ La production utilisera Postgres hébergée (Supabase, Neon ou Railway)
 comme prévu dans le plan — même schéma, il suffira de changer
 `DATABASE_URL`.
 
-## Routes (v0.5.8)
+## Routes (v0.5.9)
 
 | Route | Rôle | Auth |
 |---|---|---|
@@ -64,9 +64,9 @@ comme prévu dans le plan — même schéma, il suffira de changer
 | `GET /api/admin/google-settings` | Réglages Google (secret masqué) | Admin |
 | `POST /api/admin/google-settings` | Enregistrer identifiant + secret Google | Admin |
 | `POST /api/admin/google/test` | Tester la config Google chez Google | Admin |
-| `GET /api/admin/email-settings` | Réglages e-mail Gmail (mot de passe d'application masqué) | Admin |
-| `POST /api/admin/email-settings` | Enregistrer adresse Gmail + mot de passe d'application | Admin |
-| `POST /api/admin/email/test` | Envoyer un e-mail de test à l'adresse Gmail configurée | Admin |
+| `GET /api/admin/email-settings` | Réglages e-mail : adresse Gmail expéditrice + clé API Brevo masquée | Admin |
+| `POST /api/admin/email-settings` | Enregistrer adresse Gmail + clé API Brevo (vide = garder) | Admin |
+| `POST /api/admin/email/test` | Envoyer un e-mail de test à l'adresse Gmail configurée (via Brevo si la clé est configurée) | Admin |
 
 Frais (règles de Riad, 2026-11-14) : livraison 2,99 $ Saint-Laurent (H4L),
 4,99 $ reste de Montréal, 7,99 $ plus loin ; service 4,99 $ livraison /
@@ -144,7 +144,7 @@ Frais (règles de Riad, 2026-11-14) : livraison 2,99 $ Saint-Laurent (H4L),
   de la boutique (filtre côté client, badge « Spécial »). Pas d'ancien
   prix ni de prix barré pour l'instant.
 
-### Reçu de commande par e-mail (Gmail, v0.5.3)
+### Reçu de commande par e-mail (Brevo HTTPS, v0.5.9)
 
 - L'e-mail du client est **obligatoire à l'inscription** (`POST
   /api/auth/register` : format valide, unique — erreurs `email_invalid`
@@ -163,20 +163,32 @@ Frais (règles de Riad, 2026-11-14) : livraison 2,99 $ Saint-Laurent (H4L),
   `POST /api/admin/orders/{id}/resend-receipt` (409
   `receipt_already_sent` si déjà envoyé, 400 `no_customer_email` si le
   client n'a pas d'e-mail).
-- Envoi via **Gmail SMTP** (smtp.gmail.com:587, STARTTLS) avec un mot de
-  passe d'application Google : configuration dans la table `settings`
-  (clé `email`) via `GET` / `POST /api/admin/email-settings`
-  (`smtp_user`, `smtp_app_password` masqué, `smtp_from_name` « Soukly »),
-  ou variables d'environnement `SMTP_USER` / `SMTP_APP_PASSWORD`.
+- Envoi via **l'API Brevo** (`POST https://api.brevo.com/v3/smtp/email`,
+  HTTPS port 443, en-tête `api-key`) : Render gratuit bloque tous les
+  ports SMTP sortants (25/465/587), donc Gmail SMTP y échouait toujours
+  en « Connection timeout » (vérifié : la même connexion SMTP marche
+  depuis le bac à sable). Brevo gratuit : **300 e-mails/jour**, sans
+  domaine — il faut juste **vérifier l'adresse Gmail de l'expéditeur
+  dans Brevo** (expéditeur unique) ; on peut ensuite envoyer à
+  n'importe quel client. Configuration dans la table `settings` (clé
+  `email`) via `GET` / `POST /api/admin/email-settings` (`smtp_user`
+  = adresse Gmail expéditrice, `brevo_api_key` masquée, `smtp_from_name`
+  « Soukly ») ou variable d'environnement `BREVO_API_KEY`.
   `POST /api/admin/email/test` envoie un e-mail de test à l'adresse
-  configurée et renvoie l'erreur réelle de Gmail en cas d'échec. Le mot
-  de passe d'application se crée dans le compte Google (Sécurité →
-  Validation en deux étapes → Mots de passe des applications) — il ne
-  doit jamais être partagé en clair.
-- Dev local uniquement : avec `EMAIL_TEST_TRANSPORT=json`, l'envoi ne
-  touche pas Gmail (transport JSON nodemailer, message généré en
-  mémoire) — c'est comme ça que le déclencheur a été vérifié ici. Sans
-  cette variable (Render), c'est le vrai Gmail qui est utilisé.
+  configurée et renvoie l'erreur réelle de Brevo en cas d'échec (clé
+  invalide → 401, expéditeur non vérifié → 400). La clé API se crée
+  dans le compte Brevo gratuit (Settings → API Keys) — elle ne doit
+  jamais être partagée en clair.
+- Repli (dev local uniquement) : si aucune clé Brevo n'est configurée,
+  l'envoi repasse par **Gmail SMTP** (smtp.gmail.com:587, STARTTLS)
+  avec un mot de passe d'application Google (`smtp_app_password` dans
+  les réglages, ou variables d'environnement `SMTP_USER` /
+  `SMTP_APP_PASSWORD`). Délais SMTP 30 s + un nouvel essai sur délai de
+  connexion (v0.5.8).
+- Dev local uniquement : avec `EMAIL_TEST_TRANSPORT=json`, l'envoi SMTP
+  ne touche pas Gmail (transport JSON nodemailer, message généré en
+  mémoire) — c'est comme ça que le déclencheur a été vérifié ici. Le
+  chemin Brevo, lui, appelle toujours la vraie API.
 
 ### Commandes — règles
 

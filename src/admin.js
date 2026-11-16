@@ -555,10 +555,10 @@ adminRouter.post('/google/test', async (req, res) => {
   }
 });
 
-// --- Réglages e-mail (reçu de commande par Gmail) ---
+// --- Réglages e-mail (reçu de commande : Brevo HTTPS, repli SMTP) ---
 
-// GET /api/admin/email-settings — adresse Gmail + mot de passe
-// d'application masqué (jamais en clair), comme les réglages IA/Google.
+// GET /api/admin/email-settings — adresse Gmail expéditrice + clé API
+// Brevo masquée (jamais en clair), comme les réglages IA/Google.
 adminRouter.get('/email-settings', async (req, res) => {
   const stored = await getSetting('email');
   const s = emailSettingsFromStore(stored);
@@ -567,6 +567,8 @@ adminRouter.get('/email-settings', async (req, res) => {
     smtp_user: s.smtp_user,
     smtp_app_password_masked: maskSecret(s.smtp_app_password),
     has_app_password: Boolean(s.smtp_app_password),
+    brevo_api_key_masked: maskSecret(s.brevo_api_key),
+    has_brevo_key: Boolean(s.brevo_api_key),
     smtp_from_name: s.smtp_from_name,
   });
 });
@@ -580,21 +582,27 @@ adminRouter.post('/email-settings', async (req, res) => {
   const smtp_app_password = body.smtp_app_password != null && String(body.smtp_app_password) !== ''
     ? String(body.smtp_app_password)
     : current.smtp_app_password;
+  // Clé Brevo vide = on garde celle enregistrée.
+  const brevo_api_key = body.brevo_api_key != null && String(body.brevo_api_key) !== ''
+    ? String(body.brevo_api_key).trim()
+    : current.brevo_api_key;
   const smtp_from_name = body.smtp_from_name != null
     ? String(body.smtp_from_name).trim() || 'Soukly'
     : current.smtp_from_name;
-  await setSetting('email', { smtp_user, smtp_app_password, smtp_from_name });
+  await setSetting('email', { smtp_user, smtp_app_password, brevo_api_key, smtp_from_name });
   return res.json({
     ok: true,
     smtp_user,
     smtp_app_password_masked: maskSecret(smtp_app_password),
     has_app_password: Boolean(smtp_app_password),
+    brevo_api_key_masked: maskSecret(brevo_api_key),
+    has_brevo_key: Boolean(brevo_api_key),
     smtp_from_name,
   });
 });
 
 // POST /api/admin/email/test — envoie un e-mail de test à l'adresse
-// Gmail configurée. Renvoie ok ou l'erreur réelle de Gmail.
+// Gmail configurée. Renvoie ok ou l'erreur réelle (Brevo ou Gmail).
 adminRouter.post('/email/test', async (req, res) => {
   const result = await sendTestEmail();
   if (!result.ok) {
