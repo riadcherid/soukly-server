@@ -6,6 +6,7 @@
     "express": "^5.3.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.5.0",
+    "nodemailer": "^10.6.0",
     "pg": "^8.23.1"
   },
   "description": "Serveur API REST pour l'appli mobile Soukly (Flutter, Android + iOS)",

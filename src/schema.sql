@@ -92,3 +92,9 @@ ALTER TABLE order_items ADD COLUMN IF NOT EXISTS replacement_product_id INTEGER 
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS tps_cents INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS tvq_cents INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS prepared BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Évolutions v0.5.3 (idempotentes, rejouées à chaque démarrage) :
+-- e-mail du client (obligatoire à l'inscription, nullable pour les
+-- comptes existants) et horodatage d'envoi du reçu par e-mail.
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS email TEXT UNIQUE;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS receipt_email_sent_at TEXT;

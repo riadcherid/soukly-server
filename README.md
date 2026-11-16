@@ -25,7 +25,7 @@ La production utilisera Postgres hébergée (Supabase, Neon ou Railway)
 comme prévu dans le plan — même schéma, il suffira de changer
 `DATABASE_URL`.
 
-## Routes (v0.5.2)
+## Routes (v0.5.3)
 
 | Route | Rôle | Auth |
 |---|---|---|
@@ -34,18 +34,20 @@ comme prévu dans le plan — même schéma, il suffira de changer
 | `GET /api/catalog` | Rayons, produits, prix et dispos, inventaire du matin | — |
 | `GET /api/images/:key` | Servir une photo produit uploadée (lecture publique) | — |
 | `POST /api/admin/upload-photo` | Envoyer une photo produit (multipart, JPEG/PNG/WebP, max 5 Mo) | Admin |
-| `POST /api/auth/register` | Compte client (nom, téléphone, mot de passe) | — |
+| `POST /api/auth/register` | Compte client (nom, téléphone, mot de passe, **e-mail obligatoire**) | — |
 | `POST /api/auth/login` | Connexion téléphone + mot de passe | — |
 | `POST /api/auth/logout` | Déconnexion (jeton JWT sans état : le client jette son jeton) | — |
 | `GET /api/auth/me` | Client connecté | Bearer (client) |
+| `PATCH /api/auth/me` | Ajouter / modifier son e-mail (validé, unique) | Bearer (client) |
 | `POST /api/auth/google` | Échange du code Google côté serveur, compte par courriel vérifié | — |
 | `POST /api/auth/apple` | Vérification du jeton d'identité Apple (iOS) | — |
 | `GET /api/config/google` | Identifiant client Google public + connexion activée | — |
 | `POST /api/fees/quote` | Frais de livraison et de service selon le code postal | — |
 | `POST /api/orders` | Créer une commande (livraison / cueillette, pourboire livreur) | Bearer (client) |
 | `GET /api/orders/mine` | Commandes du client connecté | Bearer (client) |
-| `GET /api/orders` | Toutes les commandes (filtre `?status=`, `?limit=`) — chaque commande renvoie aussi `customer_name` (nom du client, jointure sur `customers`) | Admin |
-| `PATCH /api/orders/{id}/status` | Statut : reçue, en préparation, prête, terminée, annulée | Admin |
+| `GET /api/orders` | Toutes les commandes (filtre `?status=`, `?limit=`) — chaque commande renvoie aussi `customer_name` (nom du client, jointure sur `customers`), `customer_email` et `receipt_email_sent_at` | Admin |
+| `PATCH /api/orders/{id}/status` | Statut : reçue, en préparation, prête, terminée, annulée — passer à « terminée » envoie le reçu par e-mail au client (une seule fois) | Admin |
+| `POST /api/admin/orders/{id}/resend-receipt` | Renvoyer le reçu par e-mail (client avec e-mail, reçu pas encore envoyé) | Admin |
 | `PATCH /api/orders/{id}/items/{itemId}/status` | Collecte : collecté / manquant (+ remplacement) | Admin |
 | `PATCH /api/orders/{id}/items/{itemId}/weight` | Poids réel pesé en grammes → montant final | Admin |
 | `POST /api/admin/products` | Ajouter / modifier un produit | Admin |
@@ -59,10 +61,47 @@ comme prévu dans le plan — même schéma, il suffira de changer
 | `GET /api/admin/google-settings` | Réglages Google (secret masqué) | Admin |
 | `POST /api/admin/google-settings` | Enregistrer identifiant + secret Google | Admin |
 | `POST /api/admin/google/test` | Tester la config Google chez Google | Admin |
+| `GET /api/admin/email-settings` | Réglages e-mail Gmail (mot de passe d'application masqué) | Admin |
+| `POST /api/admin/email-settings` | Enregistrer adresse Gmail + mot de passe d'application | Admin |
+| `POST /api/admin/email/test` | Envoyer un e-mail de test à l'adresse Gmail configurée | Admin |
 
 Frais (règles de Riad, 2026-11-14) : livraison 2,99 $ Saint-Laurent (H4L),
 4,99 $ reste de Montréal, 7,99 $ plus loin ; service 4,99 $ livraison /
 2,99 $ cueillette. Prix en cents, poids en grammes.
+
+### Reçu de commande par e-mail (Gmail, v0.5.3)
+
+- L'e-mail du client est **obligatoire à l'inscription** (`POST
+  /api/auth/register` : format valide, unique — erreurs `email_invalid`
+  / `email_already_registered`). Les comptes existants sans e-mail
+  peuvent l'ajouter via `PATCH /api/auth/me` (validé, unique). Pour le
+  reçu, on utilise `email` si défini, sinon `google_email` (compte
+  Google / Apple).
+- Quand une commande passe à « terminée » (et seulement à ce moment-là,
+  une seule fois), le serveur envoie le reçu par e-mail au client :
+  objet « Soukly — Reçu de votre commande n° X », corps HTML rouge/blanc
+  + version texte (n° de commande, nom, adresse, téléphone, mode, date,
+  articles avec poids final pesé, frais, pourboire, TPS / TVQ, total
+  final). L'envoi est asynchrone : un échec ne bloque jamais le
+  changement de statut (journalisé seulement) ; `receipt_email_sent_at`
+  n'est mis que si l'envoi réussit. Renvoi manuel :
+  `POST /api/admin/orders/{id}/resend-receipt` (409
+  `receipt_already_sent` si déjà envoyé, 400 `no_customer_email` si le
+  client n'a pas d'e-mail).
+- Envoi via **Gmail SMTP** (smtp.gmail.com:587, STARTTLS) avec un mot de
+  passe d'application Google : configuration dans la table `settings`
+  (clé `email`) via `GET` / `POST /api/admin/email-settings`
+  (`smtp_user`, `smtp_app_password` masqué, `smtp_from_name` « Soukly »),
+  ou variables d'environnement `SMTP_USER` / `SMTP_APP_PASSWORD`.
+  `POST /api/admin/email/test` envoie un e-mail de test à l'adresse
+  configurée et renvoie l'erreur réelle de Gmail en cas d'échec. Le mot
+  de passe d'application se crée dans le compte Google (Sécurité →
+  Validation en deux étapes → Mots de passe des applications) — il ne
+  doit jamais être partagé en clair.
+- Dev local uniquement : avec `EMAIL_TEST_TRANSPORT=json`, l'envoi ne
+  touche pas Gmail (transport JSON nodemailer, message généré en
+  mémoire) — c'est comme ça que le déclencheur a été vérifié ici. Sans
+  cette variable (Render), c'est le vrai Gmail qui est utilisé.
 
 ### Commandes — règles
 

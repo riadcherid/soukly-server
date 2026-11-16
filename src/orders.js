@@ -9,6 +9,7 @@ import { requireAuth } from './auth.js';
 import { requireAdmin } from './admin.js';
 import { quoteFees } from './fees.js';
 import { computeOrderTaxes } from './taxes.js';
+import { sendOrderReceipt } from './email.js';
 
 const ORDER_STATUSES = ['recue', 'en_preparation', 'prete', 'terminee', 'annulee'];
 const ITEM_STATUSES = ['a_collecter', 'collecte', 'manquant'];
@@ -37,6 +38,7 @@ function publicOrder(row, items) {
     id: row.id,
     customer_id: row.customer_id,
     customer_name: row.customer_name ?? null,
+    customer_email: row.customer_email ?? null,
     mode: row.mode,
     status: row.status,
     address: row.address,
@@ -51,6 +53,7 @@ function publicOrder(row, items) {
     estimated_total_cents: row.estimated_total_cents,
     total_cents: row.total_cents,
     final_total_cents: row.final_total_cents,
+    receipt_email_sent_at: row.receipt_email_sent_at ?? null,
     delivery_zone: row.delivery_zone,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -60,7 +63,9 @@ function publicOrder(row, items) {
 
 async function loadOrderWithItems(orderId) {
   const order = await get(
-    `SELECT o.*, c.name AS customer_name FROM orders o
+    `SELECT o.*, c.name AS customer_name,
+            COALESCE(c.email, c.google_email) AS customer_email
+     FROM orders o
      LEFT JOIN customers c ON c.id = o.customer_id WHERE o.id = $1`,
     orderId,
   );
@@ -237,7 +242,9 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
 // GET /api/orders/mine — commandes du client connecté.
 ordersRouter.get('/orders/mine', requireAuth, async (req, res) => {
   const orders = await all(
-    `SELECT o.*, c.name AS customer_name FROM orders o
+    `SELECT o.*, c.name AS customer_name,
+            COALESCE(c.email, c.google_email) AS customer_email
+     FROM orders o
      LEFT JOIN customers c ON c.id = o.customer_id
      WHERE o.customer_id = $1 ORDER BY o.id DESC`,
     req.customer.id,
@@ -259,13 +266,17 @@ ordersRouter.get('/orders', requireAdmin, async (req, res) => {
   const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 100));
   const orders = status && ORDER_STATUSES.includes(status)
     ? await all(
-        `SELECT o.*, c.name AS customer_name FROM orders o
+        `SELECT o.*, c.name AS customer_name,
+                COALESCE(c.email, c.google_email) AS customer_email
+         FROM orders o
          LEFT JOIN customers c ON c.id = o.customer_id
          WHERE o.status = $1 ORDER BY o.id DESC LIMIT $2`,
         status, limit,
       )
     : await all(
-        `SELECT o.*, c.name AS customer_name FROM orders o
+        `SELECT o.*, c.name AS customer_name,
+                COALESCE(c.email, c.google_email) AS customer_email
+         FROM orders o
          LEFT JOIN customers c ON c.id = o.customer_id
          ORDER BY o.id DESC LIMIT $1`,
         limit,
@@ -290,6 +301,7 @@ ordersRouter.patch('/orders/:id/status', requireAdmin, async (req, res) => {
   }
   const order = await get('SELECT * FROM orders WHERE id = $1', id);
   if (!order) return res.status(404).json({ ok: false, error: 'order_not_found' });
+  const wasTerminee = order.status === 'terminee';
   const now = new Date().toISOString();
   // En terminant la commande, le total courant devient le total final
   // s'il n'a pas déjà été fixé par la pesée.
@@ -300,7 +312,44 @@ ordersRouter.patch('/orders/:id/status', requireAdmin, async (req, res) => {
     'UPDATE orders SET status = $1, final_total_cents = $2, updated_at = $3 WHERE id = $4',
     status, finalTotal, now, id,
   );
+  // Commande terminée : envoi du reçu par e-mail au client (une seule
+  // fois). Asynchrone : un échec d'envoi ne bloque pas le changement
+  // de statut, il est seulement journalisé (voir email.js).
+  if (status === 'terminee' && !wasTerminee && !order.receipt_email_sent_at) {
+    sendOrderReceipt(id).catch((err) => console.error('[receipt]', err.message));
+  }
   return res.json({ ok: true, order: await loadOrderWithItems(id) });
+});
+
+// POST /api/admin/orders/{id}/resend-receipt — renvoyer le reçu par
+// e-mail (si le client a un e-mail et que le reçu n'a pas été envoyé).
+ordersRouter.post('/admin/orders/:id/resend-receipt', requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const order = await get('SELECT * FROM orders WHERE id = $1', id);
+  if (!order) return res.status(404).json({ ok: false, error: 'order_not_found' });
+  if (order.receipt_email_sent_at) {
+    return res.status(409).json({
+      ok: false, error: 'receipt_already_sent',
+      sent_at: order.receipt_email_sent_at,
+    });
+  }
+  const result = await sendOrderReceipt(id);
+  if (!result.sent) {
+    if (result.reason === 'no_customer_email') {
+      return res.status(400).json({ ok: false, error: 'no_customer_email' });
+    }
+    if (result.reason === 'email_not_configured') {
+      return res.status(400).json({ ok: false, error: 'email_not_configured' });
+    }
+    return res.status(502).json({
+      ok: false, error: 'email_send_failed',
+      message: result.error || result.reason,
+    });
+  }
+  return res.json({
+    ok: true, order: await loadOrderWithItems(id),
+    sent_at: result.sent_at, to: result.to,
+  });
 });
 
 // PATCH /api/orders/{id}/items/{itemId}/status — collecte (admin).

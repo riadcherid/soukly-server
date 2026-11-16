@@ -11,6 +11,7 @@ import crypto from 'node:crypto';
 import { all, get, run } from './db.js';
 import { fetchJson } from './http.js';
 import { photoUrl } from './photos.js';
+import { emailSettingsFromStore, sendTestEmail } from './email.js';
 
 export const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 if (!ADMIN_TOKEN) {
@@ -497,4 +498,55 @@ adminRouter.post('/google/test', async (req, res) => {
     console.error('[google/test]', err.message);
     return res.status(502).json({ ok: false, error: 'google_unreachable', message: err.message });
   }
+});
+
+// --- Réglages e-mail (reçu de commande par Gmail) ---
+
+// GET /api/admin/email-settings — adresse Gmail + mot de passe
+// d'application masqué (jamais en clair), comme les réglages IA/Google.
+adminRouter.get('/email-settings', async (req, res) => {
+  const stored = await getSetting('email');
+  const s = emailSettingsFromStore(stored);
+  return res.json({
+    ok: true,
+    smtp_user: s.smtp_user,
+    smtp_app_password_masked: maskSecret(s.smtp_app_password),
+    has_app_password: Boolean(s.smtp_app_password),
+    smtp_from_name: s.smtp_from_name,
+  });
+});
+
+adminRouter.post('/email-settings', async (req, res) => {
+  const body = req.body || {};
+  const stored = await getSetting('email');
+  const current = emailSettingsFromStore(stored);
+  const smtp_user = body.smtp_user != null ? String(body.smtp_user).trim() : current.smtp_user;
+  // Mot de passe vide = on garde celui enregistré (comme la clé IA).
+  const smtp_app_password = body.smtp_app_password != null && String(body.smtp_app_password) !== ''
+    ? String(body.smtp_app_password)
+    : current.smtp_app_password;
+  const smtp_from_name = body.smtp_from_name != null
+    ? String(body.smtp_from_name).trim() || 'Soukly'
+    : current.smtp_from_name;
+  await setSetting('email', { smtp_user, smtp_app_password, smtp_from_name });
+  return res.json({
+    ok: true,
+    smtp_user,
+    smtp_app_password_masked: maskSecret(smtp_app_password),
+    has_app_password: Boolean(smtp_app_password),
+    smtp_from_name,
+  });
+});
+
+// POST /api/admin/email/test — envoie un e-mail de test à l'adresse
+// Gmail configurée. Renvoie ok ou l'erreur réelle de Gmail.
+adminRouter.post('/email/test', async (req, res) => {
+  const result = await sendTestEmail();
+  if (!result.ok) {
+    if (result.error === 'email_not_configured') {
+      return res.status(400).json({ ok: false, error: 'email_not_configured' });
+    }
+    return res.json({ ok: false, valid: false, error: result.error });
+  }
+  return res.json({ ok: true, valid: true, to: result.to });
 });
