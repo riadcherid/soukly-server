@@ -25,7 +25,7 @@ La production utilisera Postgres hébergée (Supabase, Neon ou Railway)
 comme prévu dans le plan — même schéma, il suffira de changer
 `DATABASE_URL`.
 
-## Routes (v0.5.5)
+## Routes (v0.5.6)
 
 | Route | Rôle | Auth |
 |---|---|---|
@@ -45,7 +45,7 @@ comme prévu dans le plan — même schéma, il suffira de changer
 | `POST /api/fees/quote` | Frais de livraison et de service selon le code postal | — |
 | `POST /api/orders` | Créer une commande (livraison / cueillette, pourboire livreur) | Bearer (client) |
 | `GET /api/orders/mine` | Commandes du client connecté | Bearer (client) |
-| `GET /api/orders` | Toutes les commandes (filtre `?status=`, `?limit=`) — chaque commande renvoie aussi `customer_name` (nom du client, jointure sur `customers`), `customer_email` et `receipt_email_sent_at` | Admin |
+| `GET /api/orders` | Toutes les commandes (filtre `?status=`, `?limit=`) — chaque commande renvoie aussi `customer_name` (nom du client, jointure sur `customers`), `customer_email`, `receipt_email_sent_at` et `delivery_code` | Admin |
 | `DELETE /api/admin/customers` | Supprimer TOUS les comptes clients et leurs commandes (réinscription propre) — ne touche ni aux produits, ni aux rayons, ni aux réglages, ni à l'inventaire | Admin |
 | `PATCH /api/orders/{id}/status` | Statut : reçue, en préparation, prête, terminée, annulée — passer à « terminée » envoie le reçu par e-mail au client (une seule fois) | Admin |
 | `POST /api/admin/orders/{id}/resend-receipt` | Renvoyer le reçu par e-mail (client avec e-mail, reçu pas encore envoyé) | Admin |
@@ -69,6 +69,23 @@ comme prévu dans le plan — même schéma, il suffira de changer
 Frais (règles de Riad, 2026-11-14) : livraison 2,99 $ Saint-Laurent (H4L),
 4,99 $ reste de Montréal, 7,99 $ plus loin ; service 4,99 $ livraison /
 2,99 $ cueillette. Prix en cents, poids en grammes.
+
+### Code de livraison aléatoire (v0.5.6)
+
+- Chaque commande a un `delivery_code` à **6 chiffres** (100000–999999),
+  généré aléatoirement à la création, unique entre les commandes en
+  cours (nouvel essai en cas de collision ; index unique partiel sur
+  les commandes non terminées). Le client le donne au livreur à la
+  remise du sac, le livreur le compare avec le code du bon — style
+  Uber Eats, pour ne pas se tromper de client quand il y a plusieurs
+  commandes. Affichage seulement : aucune vérification serveur.
+- Les commandes créées avant v0.5.6 en reçoivent un à la migration
+  (remplissage à l'exécution du schéma).
+- Le code est renvoyé dans la sérialisation des commandes partout
+  (`POST /api/orders`, `GET /api/orders/mine`, `GET /api/orders`) et
+  affiché sur les deux bons (carte + PDF), dans « Mes commandes » et
+  dans le détail de commande admin. Il n'apparaît **pas** dans l'e-mail
+  du reçu (il part après la livraison, le code n'y sert plus).
 
 ### Nom d'utilisateur et connexion au choix (v0.5.5)
 

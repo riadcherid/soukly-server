@@ -18,6 +18,27 @@ const WEIGHT_MIN_G = 1;
 const WEIGHT_MAX_G = 5000; // poids choisi par le client (1 g à 5000 g)
 const COLLECTED_MAX_G = 10000; // poids réel pesé : borne de sécurité large
 
+// Code de livraison aléatoire à 6 chiffres (100000–999999), unique
+// entre les commandes en cours : le livreur le compare avec le code
+// du bon à la remise du sac (style Uber Eats). Affichage seulement,
+// aucune vérification serveur. `db` est le client de la transaction
+// (ou le module db) : la vérification et l'insertion sont dans la
+// même transaction. L'index unique partiel
+// idx_orders_delivery_code_active protège aussi contre les courses
+// concurrentes ; 20 essais suffisent largement (900 000 codes).
+async function generateDeliveryCode(db) {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const code = String(100000 + Math.floor(Math.random() * 900000));
+    const clash = await db.get(
+      `SELECT 1 FROM orders WHERE delivery_code = $1
+       AND status NOT IN ('terminee', 'annulee')`,
+      code,
+    );
+    if (!clash) return code;
+  }
+  throw new Error('delivery_code_exhausted');
+}
+
 function publicItem(row) {
   return {
     id: row.id,
@@ -54,6 +75,7 @@ function publicOrder(row, items) {
     total_cents: row.total_cents,
     final_total_cents: row.final_total_cents,
     receipt_email_sent_at: row.receipt_email_sent_at ?? null,
+    delivery_code: row.delivery_code ?? null,
     delivery_zone: row.delivery_zone,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -205,12 +227,14 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
   const now = new Date().toISOString();
 
   const order = await transaction(async (db) => {
+    const deliveryCode = await generateDeliveryCode(db);
     const result = await db.run(
       `INSERT INTO orders
          (customer_id, mode, status, address, postal_code, phone, note,
           delivery_fee_cents, service_fee_cents, tip_cents, tps_cents, tvq_cents,
-          estimated_total_cents, total_cents, delivery_zone, created_at, updated_at)
-       VALUES ($1, $2, 'recue', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $13, $14, $14)
+          estimated_total_cents, total_cents, delivery_zone, delivery_code,
+          created_at, updated_at)
+       VALUES ($1, $2, 'recue', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $13, $15, $14, $14)
        RETURNING *`,
       req.customer.id, mode,
       String(body.address || '').trim() || null,
@@ -219,7 +243,7 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
       String(body.note || '').trim() || null,
       fees.delivery_fee_cents, fees.service_fee_cents, tip,
       taxes.tps_cents, taxes.tvq_cents,
-      total, fees.delivery_zone, now,
+      total, fees.delivery_zone, now, deliveryCode,
     );
     const created = result.rows[0];
     for (const l of lines) {

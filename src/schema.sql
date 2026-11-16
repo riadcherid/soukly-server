@@ -117,3 +117,35 @@ ALTER TABLE products ADD COLUMN IF NOT EXISTS on_special BOOLEAN NOT NULL DEFAUL
 -- retombe sur le nom d'utilisateur quand il est absent.
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS username TEXT UNIQUE;
 ALTER TABLE customers ALTER COLUMN name DROP NOT NULL;
+
+-- Évolutions v0.5.6 (idempotentes, rejouées à chaque démarrage) :
+-- code de livraison aléatoire à 6 chiffres (100000–999999) sur chaque
+-- commande, unique entre les commandes en cours : le livreur le compare
+-- avec le code du bon à la remise du sac (style Uber Eats). Affichage
+-- seulement, aucune vérification serveur. Les commandes existantes
+-- (ex. la commande n° 4 de Riad en ligne) en reçoivent un à la migration.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_code TEXT;
+DO $$
+DECLARE
+  r RECORD;
+  c TEXT;
+  done BOOLEAN;
+BEGIN
+  FOR r IN SELECT id FROM orders WHERE delivery_code IS NULL ORDER BY id LOOP
+    done := FALSE;
+    WHILE NOT done LOOP
+      c := (100000 + floor(random() * 900000))::TEXT;
+      UPDATE orders SET delivery_code = c
+      WHERE id = r.id
+        AND NOT EXISTS (
+          SELECT 1 FROM orders o2
+          WHERE o2.delivery_code = c AND o2.id <> r.id
+            AND o2.status NOT IN ('terminee', 'annulee')
+        );
+      IF FOUND THEN done := TRUE; END IF;
+    END LOOP;
+  END LOOP;
+END $$;
+ALTER TABLE orders ALTER COLUMN delivery_code SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_delivery_code_active
+  ON orders (delivery_code) WHERE status NOT IN ('terminee', 'annulee');
