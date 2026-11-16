@@ -63,7 +63,7 @@ function publicOrder(row, items) {
 
 async function loadOrderWithItems(orderId) {
   const order = await get(
-    `SELECT o.*, c.name AS customer_name,
+    `SELECT o.*, COALESCE(c.name, c.username) AS customer_name,
             COALESCE(c.email, c.google_email) AS customer_email
      FROM orders o
      LEFT JOIN customers c ON c.id = o.customer_id WHERE o.id = $1`,
@@ -242,7 +242,7 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
 // GET /api/orders/mine — commandes du client connecté.
 ordersRouter.get('/orders/mine', requireAuth, async (req, res) => {
   const orders = await all(
-    `SELECT o.*, c.name AS customer_name,
+    `SELECT o.*, COALESCE(c.name, c.username) AS customer_name,
             COALESCE(c.email, c.google_email) AS customer_email
      FROM orders o
      LEFT JOIN customers c ON c.id = o.customer_id
@@ -266,7 +266,7 @@ ordersRouter.get('/orders', requireAdmin, async (req, res) => {
   const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 100));
   const orders = status && ORDER_STATUSES.includes(status)
     ? await all(
-        `SELECT o.*, c.name AS customer_name,
+        `SELECT o.*, COALESCE(c.name, c.username) AS customer_name,
                 COALESCE(c.email, c.google_email) AS customer_email
          FROM orders o
          LEFT JOIN customers c ON c.id = o.customer_id
@@ -274,7 +274,7 @@ ordersRouter.get('/orders', requireAdmin, async (req, res) => {
         status, limit,
       )
     : await all(
-        `SELECT o.*, c.name AS customer_name,
+        `SELECT o.*, COALESCE(c.name, c.username) AS customer_name,
                 COALESCE(c.email, c.google_email) AS customer_email
          FROM orders o
          LEFT JOIN customers c ON c.id = o.customer_id

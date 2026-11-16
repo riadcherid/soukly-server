@@ -252,7 +252,7 @@ export async function sendTestEmail() {
 
 async function loadOrderForReceipt(orderId) {
   const order = await get(
-    `SELECT o.*, c.name AS customer_name, c.email AS customer_email,
+    `SELECT o.*, COALESCE(c.name, c.username) AS customer_name, c.email AS customer_email,
             c.google_email AS customer_google_email
      FROM orders o LEFT JOIN customers c ON c.id = o.customer_id
      WHERE o.id = $1`,

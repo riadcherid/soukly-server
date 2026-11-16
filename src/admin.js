@@ -8,7 +8,7 @@
 // `settings` et ne sont JAMAIS renvoyés en clair (masqués).
 import { Router } from 'express';
 import crypto from 'node:crypto';
-import { all, get, run } from './db.js';
+import { all, get, run, transaction } from './db.js';
 import { fetchJson } from './http.js';
 import { photoUrl } from './photos.js';
 import { emailSettingsFromStore, sendTestEmail } from './email.js';
@@ -179,6 +179,27 @@ adminRouter.delete('/products/:id', async (req, res) => {
     throw err;
   }
   return res.json({ ok: true, deleted_id: id });
+});
+
+// --- Clients ---
+
+// DELETE /api/admin/customers — supprimer TOUS les comptes clients et
+// leurs commandes (réinscription propre, ex. après un changement du
+// formulaire d'inscription). Une seule transaction : d'abord les lignes
+// des commandes (order_items), puis les commandes, puis les clients —
+// `orders.customer_id` référence `customers(id)` sans ON DELETE. Ne
+// touche jamais aux produits, rayons, réglages ou à l'inventaire.
+adminRouter.delete('/customers', async (req, res) => {
+  const result = await transaction(async (db) => {
+    await db.run('DELETE FROM order_items');
+    const orders = await db.run('DELETE FROM orders');
+    const customers = await db.run('DELETE FROM customers');
+    return {
+      deleted_customers: customers.rowCount,
+      deleted_orders: orders.rowCount,
+    };
+  });
+  return res.json({ ok: true, ...result });
 });
 
 // --- Rayons ---

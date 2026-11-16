@@ -25,7 +25,7 @@ La production utilisera Postgres hébergée (Supabase, Neon ou Railway)
 comme prévu dans le plan — même schéma, il suffira de changer
 `DATABASE_URL`.
 
-## Routes (v0.5.4)
+## Routes (v0.5.5)
 
 | Route | Rôle | Auth |
 |---|---|---|
@@ -34,11 +34,11 @@ comme prévu dans le plan — même schéma, il suffira de changer
 | `GET /api/catalog` | Rayons, produits, prix et dispos, inventaire du matin | — |
 | `GET /api/images/:key` | Servir une photo produit uploadée (lecture publique) | — |
 | `POST /api/admin/upload-photo` | Envoyer une photo produit (multipart, JPEG/PNG/WebP, max 5 Mo) | Admin |
-| `POST /api/auth/register` | Compte client (nom, téléphone, mot de passe, **e-mail obligatoire**) | — |
-| `POST /api/auth/login` | Connexion téléphone + mot de passe | — |
+| `POST /api/auth/register` | Compte client (nom d'utilisateur, téléphone, e-mail, mot de passe — les 4 obligatoires ; nom complet facultatif) | — |
+| `POST /api/auth/login` | Connexion nom d'utilisateur ou e-mail + mot de passe (repli téléphone pour les comptes anciens, voir ci-dessous) | — |
 | `POST /api/auth/logout` | Déconnexion (jeton JWT sans état : le client jette son jeton) | — |
 | `GET /api/auth/me` | Client connecté | Bearer (client) |
-| `PATCH /api/auth/me` | Ajouter / modifier son e-mail (validé, unique) | Bearer (client) |
+| `PATCH /api/auth/me` | Ajouter / modifier son e-mail et/ou son nom d'utilisateur (validés, uniques) | Bearer (client) |
 | `POST /api/auth/google` | Échange du code Google côté serveur, compte par courriel vérifié | — |
 | `POST /api/auth/apple` | Vérification du jeton d'identité Apple (iOS) | — |
 | `GET /api/config/google` | Identifiant client Google public + connexion activée | — |
@@ -46,6 +46,7 @@ comme prévu dans le plan — même schéma, il suffira de changer
 | `POST /api/orders` | Créer une commande (livraison / cueillette, pourboire livreur) | Bearer (client) |
 | `GET /api/orders/mine` | Commandes du client connecté | Bearer (client) |
 | `GET /api/orders` | Toutes les commandes (filtre `?status=`, `?limit=`) — chaque commande renvoie aussi `customer_name` (nom du client, jointure sur `customers`), `customer_email` et `receipt_email_sent_at` | Admin |
+| `DELETE /api/admin/customers` | Supprimer TOUS les comptes clients et leurs commandes (réinscription propre) — ne touche ni aux produits, ni aux rayons, ni aux réglages, ni à l'inventaire | Admin |
 | `PATCH /api/orders/{id}/status` | Statut : reçue, en préparation, prête, terminée, annulée — passer à « terminée » envoie le reçu par e-mail au client (une seule fois) | Admin |
 | `POST /api/admin/orders/{id}/resend-receipt` | Renvoyer le reçu par e-mail (client avec e-mail, reçu pas encore envoyé) | Admin |
 | `PATCH /api/orders/{id}/items/{itemId}/status` | Collecte : collecté / manquant (+ remplacement) | Admin |
@@ -68,6 +69,27 @@ comme prévu dans le plan — même schéma, il suffira de changer
 Frais (règles de Riad, 2026-11-14) : livraison 2,99 $ Saint-Laurent (H4L),
 4,99 $ reste de Montréal, 7,99 $ plus loin ; service 4,99 $ livraison /
 2,99 $ cueillette. Prix en cents, poids en grammes.
+
+### Nom d'utilisateur et connexion au choix (v0.5.5)
+
+- Chaque compte a un `username` : obligatoire à l'inscription, unique,
+  insensible à la casse (stocké en minuscules), 3 à 30 caractères
+  (lettres, chiffres, `.` `_` `-`) — erreurs `username_invalid` /
+  `username_taken`. Le nom complet est facultatif à l'inscription ;
+  l'affichage (bon de livraison, reçu e-mail, liste admin) retombe sur
+  le nom d'utilisateur quand il est absent (`COALESCE(name, username)`).
+- La connexion accepte le nom d'utilisateur OU l'e-mail + mot de passe
+  (`POST /api/auth/login`, champ `identifier` ; `phone` reste accepté
+  en entrée pour l'ancien client). Même erreur générique
+  `invalid_credentials` dans tous les cas (pas d'énumération de compte).
+- Repli téléphone (serveur seulement, jamais proposé dans l'appli) :
+  un identifiant tout en chiffres (≥10 après nettoyage) est cherché
+  par téléphone, mais accepté uniquement si le compte trouvé n'a NI
+  e-mail NI nom d'utilisateur — les comptes créés avant le nom
+  d'utilisateur (ex. celui de Riad). Un compte qui a un e-mail ou un
+  nom d'utilisateur ne se connecte plus par téléphone.
+- `PATCH /api/auth/me` accepte `email` et/ou `username` (validés,
+  uniques) pour les comptes existants sans e-mail ni nom d'utilisateur.
 
 ### Unité de prix flexible et prix spécial (v0.5.4)
 

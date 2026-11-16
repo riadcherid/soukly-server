@@ -108,3 +108,12 @@ UPDATE products SET price_unit = CASE WHEN sold_by_weight THEN 'lb' ELSE 'piece'
 ALTER TABLE products ALTER COLUMN price_unit SET DEFAULT 'piece';
 ALTER TABLE products ALTER COLUMN price_unit SET NOT NULL;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS on_special BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Évolutions v0.5.5 (idempotentes, rejouées à chaque démarrage) :
+-- nom d'utilisateur du client (obligatoire à l'inscription, unique,
+-- insensible à la casse : stocké en minuscules). Les comptes existants
+-- n'en ont pas : ils peuvent en ajouter un via PATCH /api/auth/me.
+-- Le nom complet devient facultatif à l'inscription : l'affichage
+-- retombe sur le nom d'utilisateur quand il est absent.
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS username TEXT UNIQUE;
+ALTER TABLE customers ALTER COLUMN name DROP NOT NULL;
