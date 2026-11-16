@@ -25,7 +25,7 @@ La production utilisera Postgres hébergée (Supabase, Neon ou Railway)
 comme prévu dans le plan — même schéma, il suffira de changer
 `DATABASE_URL`.
 
-## Routes (v0.5.7)
+## Routes (v0.5.8)
 
 | Route | Rôle | Auth |
 |---|---|---|

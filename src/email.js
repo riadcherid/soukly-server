@@ -200,6 +200,8 @@ export async function getEmailSettings() {
 
 /// Transport nodemailer : vrai Gmail SMTP, sauf en dev local avec
 /// EMAIL_TEST_TRANSPORT=json (message généré en mémoire, jamais envoyé).
+/// Délais larges (30 s) : sur l'instance gratuite Render, une connexion
+/// SMTP lente dépassait les 10 s et tombait en « Connection timeout ».
 function createMailTransport(settings) {
   if (process.env.EMAIL_TEST_TRANSPORT === 'json') {
     return nodemailer.createTransport({ jsonTransport: true });
@@ -209,23 +211,43 @@ function createMailTransport(settings) {
     port: 587,
     secure: false, // STARTTLS
     auth: { user: settings.smtp_user, pass: settings.smtp_app_password },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 30000,
   });
 }
+
+/// Un délai de connexion n'a rien envoyé (échec avant l'envoi) : on
+/// réessaie une fois. Les autres erreurs (mot de passe refusé, etc.)
+/// ne sont pas réessayées.
+function isConnectTimeout(err) {
+  return (
+    err?.code === 'ETIMEDOUT' ||
+    err?.code === 'ECONNECTION' ||
+    /connection timeout/i.test(err?.message || '')
+  );
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function sendMail({ settings, to, subject, text, html }) {
   const transport = createMailTransport(settings);
   const fromName = settings.smtp_from_name || 'Soukly';
-  const info = await transport.sendMail({
+  const mail = {
     from: `"${fromName}" <${settings.smtp_user}>`,
     to,
     subject,
     text,
     html,
-  });
-  return info;
+  };
+  try {
+    return await transport.sendMail(mail);
+  } catch (err) {
+    if (!isConnectTimeout(err)) throw err;
+    console.error('[email] délai de connexion SMTP, nouvel essai…');
+    await sleep(2000);
+    return transport.sendMail(mail);
+  }
 }
 
 /// Envoie un e-mail de test à l'adresse Gmail configurée.
