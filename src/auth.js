@@ -9,6 +9,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { get, run } from './db.js';
 import { isValidEmail, normalizeEmail } from './email.js';
+import { photoUrl, photoUpload, photoUploadError } from './photos.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 if (!process.env.JWT_SECRET) {
@@ -44,6 +45,11 @@ function publicCustomer(row) {
     // E-mail pour le reçu de commande : `email` si défini, sinon
     // `google_email` (compte Google / Apple).
     email: row.email || row.google_email || null,
+    created_at: row.created_at || null,
+    photo_url: photoUrl(row.photo_key),
+    bio: row.bio || null,
+    address: row.address || null,
+    postal_code: row.postal_code || null,
   };
 }
 
@@ -181,25 +187,27 @@ authRouter.get('/auth/me', requireAuth, (req, res) => {
   return res.json({ ok: true, customer: publicCustomer(req.customer) });
 });
 
-// PATCH /api/auth/me — ajouter / modifier son e-mail et/ou son nom
+// PATCH /api/auth/me — modifier son profil : e-mail et/ou nom
 // d'utilisateur (comptes existants sans e-mail ni nom d'utilisateur,
-// ex. le compte de Riad). Validés et uniques. Au moins un des deux
-// champs doit être fourni.
+// ex. le compte de Riad), description, adresse de livraison par défaut
+// et code postal. Champs validés ; e-mail et nom d'utilisateur uniques.
+// Au moins un champ doit être fourni. Une chaîne vide efface le champ
+// (bio, adresse, code postal) — sauf e-mail et nom d'utilisateur,
+// qui doivent rester valides quand ils sont fournis.
 authRouter.patch('/auth/me', requireAuth, async (req, res) => {
-  const hasEmail = req.body?.email !== undefined;
-  const hasUsername = req.body?.username !== undefined;
-  if (!hasEmail && !hasUsername) {
-    return res.status(400).json({ ok: false, error: 'nothing_to_update' });
-  }
-  const email = hasEmail ? normalizeEmail(req.body.email) : null;
-  const username = hasUsername ? normalizeUsername(req.body.username) : null;
-  if (hasEmail && !isValidEmail(email)) {
-    return res.status(400).json({ ok: false, error: 'email_invalid' });
-  }
-  if (hasUsername && !isValidUsername(username)) {
-    return res.status(400).json({ ok: false, error: 'username_invalid' });
-  }
-  if (hasEmail) {
+  const updates = {};
+  const setClauses = [];
+  const params = [];
+  const addSet = (column, value) => {
+    params.push(value);
+    setClauses.push(`${column} = $${params.length}`);
+  };
+
+  if (req.body?.email !== undefined) {
+    const email = normalizeEmail(req.body.email);
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ ok: false, error: 'email_invalid' });
+    }
     const taken = await get(
       'SELECT id FROM customers WHERE email = $1 AND id <> $2',
       email, req.customer.id,
@@ -207,8 +215,14 @@ authRouter.patch('/auth/me', requireAuth, async (req, res) => {
     if (taken) {
       return res.status(409).json({ ok: false, error: 'email_already_registered' });
     }
+    updates.email = email;
+    addSet('email', email);
   }
-  if (hasUsername) {
+  if (req.body?.username !== undefined) {
+    const username = normalizeUsername(req.body.username);
+    if (!isValidUsername(username)) {
+      return res.status(400).json({ ok: false, error: 'username_invalid' });
+    }
     const taken = await get(
       'SELECT id FROM customers WHERE username = $1 AND id <> $2',
       username, req.customer.id,
@@ -216,14 +230,101 @@ authRouter.patch('/auth/me', requireAuth, async (req, res) => {
     if (taken) {
       return res.status(409).json({ ok: false, error: 'username_taken' });
     }
+    updates.username = username;
+    addSet('username', username);
   }
+  // Description (bio) : texte libre, 200 caractères max. Une chaîne
+  // vide l'efface.
+  if (req.body?.bio !== undefined) {
+    const bio = String(req.body.bio || '').trim();
+    if (bio.length > 200) {
+      return res.status(400).json({ ok: false, error: 'bio_too_long' });
+    }
+    updates.bio = bio || null;
+    addSet('bio', bio || null);
+  }
+  // Adresse de livraison par défaut : texte libre, 200 caractères max.
+  // Une chaîne vide l'efface (le code postal est effacé aussi).
+  if (req.body?.address !== undefined) {
+    const address = String(req.body.address || '').trim();
+    if (address.length > 200) {
+      return res.status(400).json({ ok: false, error: 'address_too_long' });
+    }
+    updates.address = address || null;
+    addSet('address', address || null);
+    if (!address) {
+      updates.postal_code = null;
+      addSet('postal_code', null);
+    }
+  }
+  // Code postal par défaut (format canadien A1A 1A1, comme aux frais).
+  // Une chaîne vide l'efface.
+  if (req.body?.postal_code !== undefined) {
+    const postal = String(req.body.postal_code || '').trim().toUpperCase();
+    if (postal !== '' && !/^[A-Z]\d[A-Z]\d[A-Z]\d$/.test(postal.replace(/\s+/g, ''))) {
+      return res.status(400).json({ ok: false, error: 'postal_invalid' });
+    }
+    updates.postal_code = postal || null;
+    addSet('postal_code', postal || null);
+  }
+
+  if (setClauses.length === 0) {
+    return res.status(400).json({ ok: false, error: 'nothing_to_update' });
+  }
+  params.push(req.customer.id);
   const result = await run(
-    `UPDATE customers
-     SET email = COALESCE($1, email), username = COALESCE($2, username)
-     WHERE id = $3 RETURNING *`,
-    email, username, req.customer.id,
+    `UPDATE customers SET ${setClauses.join(', ')} WHERE id = $${params.length} RETURNING *`,
+    ...params,
   );
   return res.json({ ok: true, customer: publicCustomer(result.rows[0]) });
+});
+
+// POST /api/auth/me/photo — photo de profil du client (multipart,
+// champ `photo`, JPEG/PNG/WebP, 5 Mo max — mêmes règles que les photos
+// produits). Authentifié par le JWT client, PAS par le jeton admin.
+// Réponse : { ok: true, photo_url, customer }.
+authRouter.post('/auth/me/photo', requireAuth, (req, res) => {
+  photoUpload.single('photo')(req, res, async (err) => {
+    if (err) {
+      const { status, body } = photoUploadError(err);
+      return res.status(status).json(body);
+    }
+    if (!req.file) {
+      return res.status(400).json({ ok: false, error: 'photo_required' });
+    }
+    const result = await run(
+      'UPDATE customers SET photo_key = $1 WHERE id = $2 RETURNING *',
+      req.file.filename, req.customer.id,
+    );
+    const customer = result.rows[0];
+    return res.status(201).json({
+      ok: true,
+      photo_url: photoUrl(customer.photo_key),
+      customer: publicCustomer(customer),
+    });
+  });
+});
+
+// POST /api/auth/change-password — changer son mot de passe (JWT
+// client). Le mot de passe actuel doit être correct, sinon erreur
+// générique ; le nouveau respecte la même longueur minimale qu'à
+// l'inscription (6 caractères).
+authRouter.post('/auth/change-password', requireAuth, async (req, res) => {
+  const currentPassword = String(req.body?.current_password || '');
+  const newPassword = String(req.body?.new_password || '');
+  if (newPassword.length < 6) {
+    return res.status(400).json({ ok: false, error: 'password_too_short' });
+  }
+  if (!req.customer.password_hash ||
+      !bcrypt.compareSync(currentPassword, req.customer.password_hash)) {
+    return res.status(400).json({ ok: false, error: 'current_password_invalid' });
+  }
+  const password_hash = bcrypt.hashSync(newPassword, 10);
+  await run(
+    'UPDATE customers SET password_hash = $1 WHERE id = $2',
+    password_hash, req.customer.id,
+  );
+  return res.json({ ok: true });
 });
 
 // POST /api/auth/logout — jeton JWT sans état : le client jette son jeton.

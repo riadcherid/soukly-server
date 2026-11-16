@@ -57,6 +57,22 @@ const upload = multer({
   },
 });
 
+// Middleware d'upload réutilisable (photo de profil client, voir
+// auth.js) : même règles que pour les photos produits (JPEG/PNG/WebP,
+// 5 Mo max). Le fichier arrive dans `req.file`.
+export const photoUpload = upload;
+
+// Traduction d'une erreur d'upload en réponse HTTP JSON.
+export function photoUploadError(err) {
+  if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+    return { status: 400, body: { ok: false, error: 'file_too_large' } };
+  }
+  if (err.message === 'invalid_file_type') {
+    return { status: 400, body: { ok: false, error: 'invalid_file_type' } };
+  }
+  return { status: 400, body: { ok: false, error: 'upload_error' } };
+}
+
 // --- Upload admin (multipart) ---
 
 export const uploadRouter = Router();
@@ -66,15 +82,10 @@ export const uploadRouter = Router();
 // Réponse : { ok: true, image_key, mime_type, size }.
 // L'image_key est ensuite à passer à POST /api/admin/products.
 uploadRouter.post('/upload-photo', requireAdmin, (req, res) => {
-  upload.single('photo')(req, res, (err) => {
+  photoUpload.single('photo')(req, res, (err) => {
     if (err) {
-      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ ok: false, error: 'file_too_large' });
-      }
-      if (err.message === 'invalid_file_type') {
-        return res.status(400).json({ ok: false, error: 'invalid_file_type' });
-      }
-      return res.status(400).json({ ok: false, error: 'upload_error' });
+      const { status, body } = photoUploadError(err);
+      return res.status(status).json(body);
     }
     if (!req.file) {
       return res.status(400).json({ ok: false, error: 'photo_required' });

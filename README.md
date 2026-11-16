@@ -25,7 +25,7 @@ La production utilisera Postgres hébergée (Supabase, Neon ou Railway)
 comme prévu dans le plan — même schéma, il suffira de changer
 `DATABASE_URL`.
 
-## Routes (v0.5.6)
+## Routes (v0.5.7)
 
 | Route | Rôle | Auth |
 |---|---|---|
@@ -37,8 +37,10 @@ comme prévu dans le plan — même schéma, il suffira de changer
 | `POST /api/auth/register` | Compte client (nom d'utilisateur, téléphone, e-mail, mot de passe — les 4 obligatoires ; nom complet facultatif) | — |
 | `POST /api/auth/login` | Connexion nom d'utilisateur ou e-mail + mot de passe (repli téléphone pour les comptes anciens, voir ci-dessous) | — |
 | `POST /api/auth/logout` | Déconnexion (jeton JWT sans état : le client jette son jeton) | — |
-| `GET /api/auth/me` | Client connecté | Bearer (client) |
-| `PATCH /api/auth/me` | Ajouter / modifier son e-mail et/ou son nom d'utilisateur (validés, uniques) | Bearer (client) |
+| `GET /api/auth/me` | Client connecté (nom, nom d'utilisateur, téléphone, e-mail, date d'inscription, photo, description, adresse + code postal par défaut) | Bearer (client) |
+| `PATCH /api/auth/me` | Modifier son profil : e-mail et/ou nom d'utilisateur (validés, uniques), description (200 car. max), adresse de livraison par défaut, code postal (format A1A 1A1) — une chaîne vide efface le champ | Bearer (client) |
+| `POST /api/auth/me/photo` | Photo de profil (multipart, champ `photo`, JPEG/PNG/WebP, 5 Mo max) — renvoie `photo_url` + client | Bearer (client) |
+| `POST /api/auth/change-password` | Changer son mot de passe (`current_password` + `new_password`, 6 car. min ; actuel incorrect → erreur) | Bearer (client) |
 | `POST /api/auth/google` | Échange du code Google côté serveur, compte par courriel vérifié | — |
 | `POST /api/auth/apple` | Vérification du jeton d'identité Apple (iOS) | — |
 | `GET /api/config/google` | Identifiant client Google public + connexion activée | — |
@@ -106,7 +108,28 @@ Frais (règles de Riad, 2026-11-14) : livraison 2,99 $ Saint-Laurent (H4L),
   d'utilisateur (ex. celui de Riad). Un compte qui a un e-mail ou un
   nom d'utilisateur ne se connecte plus par téléphone.
 - `PATCH /api/auth/me` accepte `email` et/ou `username` (validés,
-  uniques) pour les comptes existants sans e-mail ni nom d'utilisateur.
+  uniques) pour les comptes existants sans e-mail ni nom d'utilisateur,
+  ainsi que `bio` (200 car. max), `address` et `postal_code` (format
+  A1A 1A1) — voir « Profil client (v0.5.7) » ci-dessous.
+
+### Profil client (v0.5.7)
+
+- Écran « Mon compte » : photo de profil, description, adresse de
+  livraison par défaut + code postal, changement de mot de passe.
+- `POST /api/auth/me/photo` (JWT client) : photo de profil (multipart,
+  champ `photo`, JPEG/PNG/WebP, 5 Mo max — mêmes règles que les photos
+  produits) ; le fichier vit sous `server/data/uploads/`, `photo_key`
+  est enregistré sur le client, `publicCustomer` renvoie `photo_url`
+  (résolu comme pour les produits).
+- `publicCustomer` renvoie aussi `created_at` (« Client depuis ... »),
+  `bio`, `address`, `postal_code`.
+- `POST /api/auth/change-password` (JWT client) : `current_password` +
+  `new_password` (6 car. min) ; actuel incorrect → erreur
+  `current_password_invalid` ; le nouveau est haché comme à
+  l'inscription.
+- La commande (checkout) pré-remplit l'adresse et le code postal avec
+  l'adresse par défaut du client quand elle existe (la saisie manuelle
+  et les suggestions auto restent possibles).
 
 ### Unité de prix flexible et prix spécial (v0.5.4)
 

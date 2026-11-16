@@ -149,3 +149,11 @@ END $$;
 ALTER TABLE orders ALTER COLUMN delivery_code SET NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_delivery_code_active
   ON orders (delivery_code) WHERE status NOT IN ('terminee', 'annulee');
+
+-- Évolutions v0.5.7 (idempotentes, rejouées à chaque démarrage) :
+-- profil client enrichi pour l'écran « Mon compte » : photo de profil,
+-- description (bio), adresse de livraison par défaut + code postal.
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS photo_key TEXT;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS bio TEXT;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS postal_code TEXT;
