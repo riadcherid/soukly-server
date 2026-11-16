@@ -2,6 +2,9 @@
 // Source : src/data/catalog.json (export fidèle de l'action `listcatalog`
 // de l'artifact marche-epicerie, 2026-11-14 : 19 rayons, 67 produits).
 // Idempotent : on peut le relancer, il remplace les données du catalogue.
+// Charge .env comme index.js : sans ça, `npm run seed` seul retombe sur
+// le mot de passe par défaut de db.js et échoue en auth_failed.
+import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
