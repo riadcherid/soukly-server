@@ -81,6 +81,7 @@ function toProduct(row) {
     sold_by_weight: priceUnit === 'lb' || priceUnit === 'kg',
     on_special: row.on_special === true,
     prepared: row.prepared === true,
+    deposit_cents: row.deposit_cents ?? 0,
     available: row.available === true,
     image_key: row.image_key,
     photo_url: photoUrl(row.image_key),
@@ -125,6 +126,7 @@ adminRouter.post('/products', async (req, res) => {
   const sold_by_weight = price_unit === 'lb' || price_unit === 'kg';
   const on_special = body.on_special === true;
   const prepared = body.prepared === true;
+  const deposit_cents = Math.max(0, Math.floor(Number(body.deposit_cents) || 0));
   const available = body.available === true;
   const description = String(body.description || '').trim();
   const image_key = body.image_key != null ? String(body.image_key) : null;
@@ -137,17 +139,17 @@ adminRouter.post('/products', async (req, res) => {
       const result = await run(
         `UPDATE products SET name = $1, description = $2, category_key = $3, unit = $4,
            price_cents = $5, sold_by_weight = $6, available = $7, image_key = $8,
-           prepared = $9, price_unit = $10, on_special = $11
-         WHERE id = $12 RETURNING *`,
-        name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special, id,
+           prepared = $9, price_unit = $10, on_special = $11, deposit_cents = $12
+         WHERE id = $13 RETURNING *`,
+        name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special, deposit_cents, id,
       );
       product = result.rows[0];
     } else {
       const result = await run(
         `INSERT INTO products
-           (id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
-        id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special,
+           (id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special, deposit_cents)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+        id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special, deposit_cents,
       );
       product = result.rows[0];
     }
@@ -155,9 +157,9 @@ adminRouter.post('/products', async (req, res) => {
     const next = await get('SELECT COALESCE(MAX(id), 0) + 1 AS id FROM products');
     const result = await run(
       `INSERT INTO products
-         (id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
-      next.id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special,
+         (id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special, deposit_cents)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+      next.id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special, deposit_cents,
     );
     product = result.rows[0];
   }
@@ -232,8 +234,9 @@ adminRouter.post('/categories', async (req, res) => {
 
 // POST /api/admin/inventory — prix et dispos du jour.
 // Corps : { date?, note?, prices: [{ product_id, price_cents, available?,
-//   price_unit?, on_special? }] } — l'unité ('piece' | 'lb' | 'kg') et le
-// prix spécial sont facultatifs (un ancien client ne les envoie pas).
+//   price_unit?, on_special?, deposit_cents? }] } — l'unité
+// ('piece' | 'lb' | 'kg'), le prix spécial et la consigne sont
+// facultatifs (un ancien client ne les envoie pas).
 adminRouter.post('/inventory', async (req, res) => {
   const body = req.body || {};
   const prices = body.prices;
@@ -267,6 +270,14 @@ adminRouter.post('/inventory', async (req, res) => {
     if (p?.on_special !== undefined) {
       sets.push(`on_special = $${params.length + 1}`);
       params.push(p.on_special === true);
+    }
+    if (p?.deposit_cents !== undefined) {
+      const depositCents = Math.floor(Number(p.deposit_cents));
+      if (!Number.isInteger(depositCents) || depositCents < 0) {
+        return res.status(400).json({ ok: false, error: 'deposit_invalid', product_id });
+      }
+      sets.push(`deposit_cents = $${params.length + 1}`);
+      params.push(depositCents);
     }
     params.push(product_id);
     await run(

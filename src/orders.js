@@ -71,6 +71,7 @@ function publicOrder(row, items) {
     tip_cents: row.tip_cents,
     tps_cents: row.tps_cents ?? 0,
     tvq_cents: row.tvq_cents ?? 0,
+    deposit_cents: row.deposit_cents ?? 0,
     estimated_total_cents: row.estimated_total_cents,
     total_cents: row.total_cents,
     final_total_cents: row.final_total_cents,
@@ -99,17 +100,46 @@ async function loadOrderWithItems(orderId) {
   return publicOrder(order, items);
 }
 
+// Consigne d'une commande : somme (deposit_cents du produit × quantité).
+// Comme les taxes, elle est estimée sur tous les articles à la création
+// (ils sont censés être reçus), puis recalculée à chaque changement :
+// - article collecté ou encore à collecter → consigne de son produit ;
+// - article manquant avec remplacement offert → consigne du produit de
+//   remplacement (le client reçoit la bouteille) ;
+// - article manquant sans remplacement → 0 (rien reçu, rien à consigner).
+// La consigne n'est JAMAIS taxée (ni TPS ni TVQ).
+// `items` : lignes avec { deposit_cents, replacement_deposit_cents,
+//   quantity, status, replacement_product_id }.
+export function computeOrderDeposit(items) {
+  let deposit = 0;
+  for (const it of items || []) {
+    const qty = Math.max(0, Math.floor(Number(it.quantity) || 0));
+    if (qty === 0) continue;
+    if (it.status === 'manquant') {
+      if (it.replacement_product_id != null) {
+        deposit += Math.max(0, Math.floor(Number(it.replacement_deposit_cents) || 0)) * qty;
+      }
+      continue;
+    }
+    deposit += Math.max(0, Math.floor(Number(it.deposit_cents) || 0)) * qty;
+  }
+  return deposit;
+}
+
 // Recalcule le total d'une commande à partir de ses lignes
 // (poids réel pesé quand il est renseigné, sinon poids estimé).
 // Si tous les articles sont en état final (collecté / manquant),
 // le total devient le total final.
 // Les taxes TPS/TVQ sont recalculées aussi : la pesée ne change que
 // des lignes au poids (taxe 0), mais un article manquant ou remplacé
-// (ligne à 0) fait tomber sa taxe.
+// (ligne à 0) fait tomber sa taxe. La consigne est recalculée de la
+// même façon (articles reçus seulement, remplacements inclus).
 async function recomputeTotals(db, order) {
   const items = await db.all(
-    `SELECT oi.*, p.category_key, p.sold_by_weight, p.prepared
+    `SELECT oi.*, p.category_key, p.sold_by_weight, p.prepared, p.deposit_cents,
+            rp.deposit_cents AS replacement_deposit_cents
      FROM order_items oi JOIN products p ON p.id = oi.product_id
+     LEFT JOIN products rp ON rp.id = oi.replacement_product_id
      WHERE oi.order_id = $1`,
     order.id,
   );
@@ -125,13 +155,14 @@ async function recomputeTotals(db, order) {
     order.delivery_fee_cents,
     order.service_fee_cents,
   );
-  const total = itemsTotal + order.delivery_fee_cents + order.service_fee_cents + order.tip_cents + taxes.tps_cents + taxes.tvq_cents;
+  const deposit = computeOrderDeposit(items);
+  const total = itemsTotal + order.delivery_fee_cents + order.service_fee_cents + order.tip_cents + taxes.tps_cents + taxes.tvq_cents + deposit;
   const allFinal = items.length > 0 && items.every((it) => it.status !== 'a_collecter');
   await db.run(
     `UPDATE orders SET total_cents = $1, final_total_cents = $2,
-       tps_cents = $3, tvq_cents = $4, updated_at = $5
-     WHERE id = $6`,
-    total, allFinal ? total : null, taxes.tps_cents, taxes.tvq_cents,
+       tps_cents = $3, tvq_cents = $4, deposit_cents = $5, updated_at = $6
+     WHERE id = $7`,
+    total, allFinal ? total : null, taxes.tps_cents, taxes.tvq_cents, deposit,
     new Date().toISOString(), order.id,
   );
   return { total, final_total_cents: allFinal ? total : null };
@@ -200,6 +231,7 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
       categoryKey: product.category_key,
       soldByWeight: product.sold_by_weight === true,
       prepared: product.prepared === true,
+      depositCents: product.deposit_cents ?? 0,
       quantity,
       weight_grams,
       unit_price_cents: product.price_cents,
@@ -223,7 +255,18 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
     fees.delivery_fee_cents,
     fees.service_fee_cents,
   );
-  const total = itemsTotal + fees.delivery_fee_cents + fees.service_fee_cents + tip + taxes.tps_cents + taxes.tvq_cents;
+  // Consigne estimée (tous les articles, comme les taxes) : 0,10 $ par
+  // contenant de boisson (ex. jus 10 ¢, paquet de 12 → 120 ¢). Jamais
+  // taxée : les taxes ci-dessus l'ignorent.
+  const deposit = computeOrderDeposit(
+    lines.map((l) => ({
+      deposit_cents: l.depositCents,
+      quantity: l.quantity,
+      status: 'a_collecter',
+      replacement_product_id: null,
+    })),
+  );
+  const total = itemsTotal + fees.delivery_fee_cents + fees.service_fee_cents + tip + taxes.tps_cents + taxes.tvq_cents + deposit;
   const now = new Date().toISOString();
 
   const order = await transaction(async (db) => {
@@ -231,10 +274,10 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
     const result = await db.run(
       `INSERT INTO orders
          (customer_id, mode, status, address, postal_code, phone, note,
-          delivery_fee_cents, service_fee_cents, tip_cents, tps_cents, tvq_cents,
+          delivery_fee_cents, service_fee_cents, tip_cents, tps_cents, tvq_cents, deposit_cents,
           estimated_total_cents, total_cents, delivery_zone, delivery_code,
           created_at, updated_at)
-       VALUES ($1, $2, 'recue', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $13, $15, $14, $14)
+       VALUES ($1, $2, 'recue', $3, $4, $5, $6, $7, $8, $9, $10, $11, $16, $12, $12, $13, $15, $14, $14)
        RETURNING *`,
       req.customer.id, mode,
       String(body.address || '').trim() || null,
@@ -243,7 +286,7 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
       String(body.note || '').trim() || null,
       fees.delivery_fee_cents, fees.service_fee_cents, tip,
       taxes.tps_cents, taxes.tvq_cents,
-      total, fees.delivery_zone, now, deliveryCode,
+      total, fees.delivery_zone, now, deliveryCode, deposit,
     );
     const created = result.rows[0];
     for (const l of lines) {

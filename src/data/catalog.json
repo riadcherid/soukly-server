@@ -294,6 +294,7 @@
     {
       "available": true,
       "category": "boissons",
+      "deposit_cents": 10,
       "description": "Jus d'orange, bouteille de 1,5 L.",
       "id": 18,
       "image_key": "jus-orange.jpg",
@@ -316,6 +317,7 @@
     {
       "available": true,
       "category": "boissons",
+      "deposit_cents": 120,
       "description": "Eau pétillante, paquet de 12.",
       "id": 20,
       "image_key": "eau-petillante.png",
@@ -624,6 +626,7 @@
     {
       "available": false,
       "category": "boissons",
+      "deposit_cents": 10,
       "description": "Soda algérien Hamoud Boualem, le goût de là-bas.",
       "id": 48,
       "image_key": null,

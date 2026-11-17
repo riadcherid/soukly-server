@@ -25,7 +25,7 @@ La production utilisera Postgres hébergée (Supabase, Neon ou Railway)
 comme prévu dans le plan — même schéma, il suffira de changer
 `DATABASE_URL`.
 
-## Routes (v0.6.0)
+## Routes (v0.6.1)
 
 | Route | Rôle | Auth |
 |---|---|---|
@@ -278,6 +278,29 @@ Frais (règles de Riad, 2026-11-14) : livraison 2,99 $ Saint-Laurent (H4L),
   réglable par `POST /api/admin/products`) ; aucun produit concerné
   pour l'instant.
 - Frais de livraison et frais de service → taxables TPS + TVQ.
+
+### Consigne sur les boissons (v0.6.1, règle de Riad, 2026-11-16)
+
+- Une boisson en bouteille plastique ou en canette a toujours une
+  consigne de **0,10 $ par contenant** (reçu Épilys 16 nov. 2026 18h32 :
+  Hamoud Selecto 1 L, 2 × 0,10 $ = 0,20 $). La consigne n'est **jamais
+  taxée** (ni TPS ni TVQ).
+- Champ produit `deposit_cents` (défaut 0 ; 10 pour une bouteille ou une
+  canette, 120 pour un paquet de 12), réglable par
+  `POST /api/admin/products` et par `POST /api/admin/inventory`
+  (inventaire du matin). Valeurs initiales : Jus d'orange frais (id 18)
+  → 10, Eau pétillante (id 20, paquet de 12) → 120, Soda Hamoud Boualem
+  (id 48) → 10 ; Café en grains (id 19, sac) et tous les autres
+  produits → 0. `seed.js` insère la valeur à la création du produit et
+  ne l'écrase jamais ensuite.
+- Sur la commande (`deposit_cents`) : somme (deposit × quantité) —
+  estimée sur tous les articles à la création, recalculée à chaque
+  changement de statut/poids d'article ; un article manquant sans
+  remplacement tombe à 0, un remplacement offert porte la consigne du
+  produit de remplacement (le client reçoit la bouteille). La consigne
+  est ajoutée au total (estimé et final) et affichée en ligne
+  « Consigne » (checkout, Mes commandes, détail admin, bons de
+  livraison, reçu e-mail) quand elle est > 0.
 
 ### Photos produits
 

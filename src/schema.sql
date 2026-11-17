@@ -158,6 +158,25 @@ ALTER TABLE customers ADD COLUMN IF NOT EXISTS bio TEXT;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS address TEXT;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS postal_code TEXT;
 
+-- Évolutions v0.6.1 (idempotentes, rejouées à chaque démarrage) :
+-- consigne sur les boissons en bouteille plastique ou en canette :
+-- 0,10 $ par contenant (confirmé par Riad, reçu Épilys 16 nov. 2026
+-- 18h32 : Hamoud Selecto 1 L, 2 × 0,10 $ = 0,20 $). La consigne est
+-- stockée par produit (deposit_cents : 10 pour une bouteille/canette,
+-- 120 pour un paquet de 12) et par commande (somme sur les articles
+-- reçus) ; elle n'est JAMAIS taxée (ni TPS ni TVQ).
+-- Le remplissage initial ne touche que les valeurs jamais définies
+-- (deposit_cents IS NULL) : une consigne modifiée par l'admin survit
+-- aux redémarrages, comme price_unit / on_special survivent au seed.
+ALTER TABLE products ADD COLUMN IF NOT EXISTS deposit_cents INTEGER;
+UPDATE products SET deposit_cents = 10 WHERE id = 18 AND deposit_cents IS NULL;
+UPDATE products SET deposit_cents = 120 WHERE id = 20 AND deposit_cents IS NULL;
+UPDATE products SET deposit_cents = 10 WHERE id = 48 AND deposit_cents IS NULL;
+UPDATE products SET deposit_cents = 0 WHERE deposit_cents IS NULL;
+ALTER TABLE products ALTER COLUMN deposit_cents SET DEFAULT 0;
+ALTER TABLE products ALTER COLUMN deposit_cents SET NOT NULL;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS deposit_cents INTEGER NOT NULL DEFAULT 0;
+
 -- Évolutions v0.6.0 (idempotentes, rejouées à chaque démarrage) :
 -- vérification par e-mail (code à 6 chiffres) à l'inscription et à
 -- chaque connexion : seul le hash SHA-256 du code est stocké, jamais

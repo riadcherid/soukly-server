@@ -116,6 +116,8 @@ export function buildReceiptEmail({ order, items, customerName }) {
       ? [['Frais de service', formatCentsFr(order.service_fee_cents)]] : []),
     ...(order.tip_cents > 0
       ? [['Pourboire livreur', formatCentsFr(order.tip_cents)]] : []),
+    ...(order.deposit_cents > 0
+      ? [['Consigne', formatCentsFr(order.deposit_cents)]] : []),
     ...(order.tps_cents > 0
       ? [['TPS (5 %)', formatCentsFr(order.tps_cents)]] : []),
     ...(order.tvq_cents > 0
