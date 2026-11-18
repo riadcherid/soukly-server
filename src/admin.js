@@ -7,6 +7,7 @@
 // Les secrets (clé IA, secret Google) sont stockés dans la table
 // `settings` et ne sont JAMAIS renvoyés en clair (masqués).
 import { Router } from 'express';
+import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import { all, get, run, transaction } from './db.js';
 import { fetchJson } from './http.js';
@@ -185,13 +186,127 @@ adminRouter.delete('/products/:id', async (req, res) => {
 
 // --- Clients ---
 
+// Mot de passe de la Zone dangereuse : un mot de passe séparé du jeton
+// admin, choisi par Riad, haché bcrypt dans la table `settings`
+// (clé `danger_password`). Il est exigé pour TOUTE suppression de
+// compte (un, plusieurs ou tous) — le jeton admin seul ne suffit plus.
+const DANGER_PASSWORD_MIN_LENGTH = 8;
+
+async function getDangerPasswordHash() {
+  const stored = await getSetting('danger_password');
+  return stored?.hash || null;
+}
+
+// Vérifie le mot de passe fourni : { ok: true } ou { ok: false, error }.
+// Tant qu'aucun mot de passe n'est défini (ancienne appli, avant la
+// première définition), la suppression reste possible sans mot de
+// passe — dès qu'il est défini, il est exigé partout.
+async function verifyDangerPassword(password) {
+  const hash = await getDangerPasswordHash();
+  if (!hash) return { ok: true };
+  const given = String(password || '');
+  if (!given) return { ok: false, error: 'danger_password_required' };
+  if (!bcrypt.compareSync(given, hash)) {
+    return { ok: false, error: 'danger_password_invalid' };
+  }
+  return { ok: true };
+}
+
+// Réponse d'erreur standard pour un mot de passe refusé (403).
+function dangerPasswordError(res, check) {
+  return res.status(403).json({ ok: false, error: check.error });
+}
+
+// GET /api/admin/danger-password — le mot de passe est-il défini ?
+adminRouter.get('/danger-password', async (req, res) => {
+  const hash = await getDangerPasswordHash();
+  return res.json({ ok: true, has_password: Boolean(hash) });
+});
+
+// POST /api/admin/danger-password — définir / changer le mot de passe.
+// Corps : { current_password?, new_password }. Si un mot de passe existe
+// déjà, current_password doit correspondre. Minimum 8 caractères.
+adminRouter.post('/danger-password', async (req, res) => {
+  const body = req.body || {};
+  const existing = await getDangerPasswordHash();
+  if (existing) {
+    const current = String(body.current_password || '');
+    if (!bcrypt.compareSync(current, existing)) {
+      return res.status(403).json({ ok: false, error: 'danger_password_invalid' });
+    }
+  }
+  const next = String(body.new_password || '');
+  if (next.length < DANGER_PASSWORD_MIN_LENGTH) {
+    return res.status(400).json({ ok: false, error: 'password_too_short' });
+  }
+  await setSetting('danger_password', { hash: bcrypt.hashSync(next, 10) });
+  return res.json({ ok: true, has_password: true });
+});
+
+// GET /api/admin/customers — liste des comptes (nom d'utilisateur,
+// e-mail, téléphone, date d'inscription, nombre de commandes).
+adminRouter.get('/customers', async (req, res) => {
+  const rows = await all(
+    `SELECT c.id, c.username, c.email, c.phone, c.created_at,
+            COUNT(o.id) AS orders_count
+     FROM customers c LEFT JOIN orders o ON o.customer_id = c.id
+     GROUP BY c.id ORDER BY c.created_at DESC`,
+  );
+  return res.json({
+    ok: true,
+    customers: rows.map((r) => ({
+      id: r.id,
+      username: r.username,
+      email: r.email,
+      phone: r.phone,
+      created_at: r.created_at,
+      orders_count: Number(r.orders_count) || 0,
+    })),
+  });
+});
+
+// POST /api/admin/customers/delete-selected — supprimer UN ou PLUSIEURS
+// comptes (cochés dans l'appli) et leurs commandes. Corps :
+// { ids: [1, 2], danger_password }. Une seule transaction : d'abord
+// les lignes des commandes concernées, puis leurs commandes, puis
+// les comptes. Ne touche jamais aux produits, rayons, réglages ou
+// à l'inventaire.
+adminRouter.post('/customers/delete-selected', async (req, res) => {
+  const check = await verifyDangerPassword(req.body?.danger_password);
+  if (!check.ok) return dangerPasswordError(res, check);
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+  const clean = [...new Set(
+    ids.map((v) => Number(v)).filter((n) => Number.isInteger(n) && n > 0),
+  )];
+  if (clean.length === 0) {
+    return res.status(400).json({ ok: false, error: 'ids_required' });
+  }
+  const result = await transaction(async (db) => {
+    await db.run(
+      'DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE customer_id = ANY($1))',
+      clean,
+    );
+    const orders = await db.run('DELETE FROM orders WHERE customer_id = ANY($1)', clean);
+    const customers = await db.run('DELETE FROM customers WHERE id = ANY($1)', clean);
+    return {
+      deleted_customers: customers.rowCount,
+      deleted_orders: orders.rowCount,
+    };
+  });
+  return res.json({ ok: true, ...result });
+});
+
 // DELETE /api/admin/customers — supprimer TOUS les comptes clients et
 // leurs commandes (réinscription propre, ex. après un changement du
-// formulaire d'inscription). Une seule transaction : d'abord les lignes
-// des commandes (order_items), puis les commandes, puis les clients —
-// `orders.customer_id` référence `customers(id)` sans ON DELETE. Ne
-// touche jamais aux produits, rayons, réglages ou à l'inventaire.
+// formulaire d'inscription). Mot de passe de la Zone dangereuse exigé
+// dans le corps : { danger_password }. Une seule transaction : d'abord
+// les lignes des commandes (order_items), puis les commandes, puis les
+// clients — `orders.customer_id` référence `customers(id)` sans
+// ON DELETE. Ne touche jamais aux produits, rayons, réglages ou à
+// l'inventaire.
 adminRouter.delete('/customers', async (req, res) => {
+  const check = await verifyDangerPassword(req.body?.danger_password);
+  if (!check.ok) return dangerPasswordError(res, check);
   const result = await transaction(async (db) => {
     await db.run('DELETE FROM order_items');
     const orders = await db.run('DELETE FROM orders');
