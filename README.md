@@ -69,6 +69,7 @@ comme prévu dans le plan — même schéma, il suffira de changer
 | `GET /api/admin/email-settings` | Réglages e-mail : adresse Gmail expéditrice + clé API Brevo masquée | Admin |
 | `POST /api/admin/email-settings` | Enregistrer adresse Gmail + clé API Brevo (vide = garder) | Admin |
 | `POST /api/admin/email/test` | Envoyer un e-mail de test à l'adresse Gmail configurée (via Brevo si la clé est configurée) | Admin |
+| `GET /api/admin/couriers` | Liste des livreurs, avec leur disponibilité : `available` (aucune commande assignée non terminée ni annulée) et `current_order_id` (la commande en cours, null si disponible) | Admin |
 
 Frais (règles de Riad, 2026-11-14) : livraison 2,99 $ Saint-Laurent (H4L),
 4,99 $ reste de Montréal, 7,99 $ plus loin ; service 4,99 $ livraison /

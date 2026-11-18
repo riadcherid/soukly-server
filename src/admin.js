@@ -329,12 +329,31 @@ const COURIER_USERNAME_REGEX = /^[a-z0-9._-]{3,30}$/;
 const COURIER_PASSWORD_MIN_LENGTH = 8;
 
 function publicCourierRow(row) {
+  // Disponibilité : un livreur est « disponible » s'il n'a aucune
+  // commande assignée non terminée et non annulée. La commande en
+  // cours (la plus ancienne) est renvoyée pour l'afficher à l'admin.
+  const currentOrderId =
+    row.current_order_id != null ? Number(row.current_order_id) : null;
   return {
     id: row.id,
     username: row.username,
     name: row.name || row.username,
     created_at: row.created_at,
+    available: currentOrderId == null,
+    current_order_id: currentOrderId,
   };
+}
+
+// Commande en cours d'un livreur (assignée, non terminée ni annulée),
+// ou null. Sert à la disponibilité (liste) et au refus de
+// suppression : même règle aux deux endroits.
+async function courierActiveOrderId(courierId) {
+  const row = await get(
+    `SELECT id FROM orders WHERE courier_id = $1
+     AND status NOT IN ('terminee', 'annulee') ORDER BY id LIMIT 1`,
+    courierId,
+  );
+  return row?.id ?? null;
 }
 
 // POST /api/admin/couriers — créer un compte livreur.
@@ -359,9 +378,19 @@ adminRouter.post('/couriers', async (req, res) => {
   return res.status(201).json({ ok: true, courier: publicCourierRow(result.rows[0]) });
 });
 
-// GET /api/admin/couriers — liste des livreurs.
+// GET /api/admin/couriers — liste des livreurs, avec leur
+// disponibilité : `available` (aucune commande en cours) et
+// `current_order_id` (la commande en cours, null si disponible).
+// Une seule requête : la sous-requête trouve la commande en cours
+// de chaque livreur (la plus ancienne).
 adminRouter.get('/couriers', async (req, res) => {
-  const rows = await all('SELECT * FROM couriers ORDER BY username');
+  const rows = await all(
+    `SELECT c.*,
+            (SELECT o.id FROM orders o WHERE o.courier_id = c.id
+             AND o.status NOT IN ('terminee', 'annulee')
+             ORDER BY o.id LIMIT 1) AS current_order_id
+     FROM couriers c ORDER BY c.username`,
+  );
   return res.json({ ok: true, couriers: rows.map(publicCourierRow) });
 });
 
@@ -374,12 +403,8 @@ adminRouter.delete('/couriers/:id', async (req, res) => {
   const id = Number(req.params.id);
   const courier = await get('SELECT id FROM couriers WHERE id = $1', id);
   if (!courier) return res.status(404).json({ ok: false, error: 'courier_not_found' });
-  const active = await get(
-    `SELECT id FROM orders WHERE courier_id = $1
-     AND status NOT IN ('terminee', 'annulee') LIMIT 1`,
-    id,
-  );
-  if (active) {
+  const activeOrderId = await courierActiveOrderId(id);
+  if (activeOrderId != null) {
     return res.status(409).json({ ok: false, error: 'courier_has_deliveries' });
   }
   await run('DELETE FROM couriers WHERE id = $1', id);
