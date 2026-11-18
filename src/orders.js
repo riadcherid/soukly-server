@@ -172,6 +172,33 @@ async function recomputeTotals(db, order) {
   return { total, final_total_cents: allFinal ? total : null };
 }
 
+// Avancement automatique du statut pendant la collecte (v0.7.2) :
+// le statut change tout seul, l'admin ne le touche plus à la main.
+// - « recue » -> « en_preparation » dès qu'un article est pesé ou
+//   marqué (le ramassage a commencé) ;
+// - « en_preparation » -> « prete » quand tous les articles sont
+//   collectés ou manquants.
+// Ne touche jamais aux autres statuts (en_livraison, terminee,
+// annulee) et ne recule jamais. `db` est le client de la transaction.
+async function advanceCollectionStatus(db, orderId, currentStatus) {
+  if (currentStatus !== 'recue' && currentStatus !== 'en_preparation') {
+    return currentStatus;
+  }
+  const items = await db.all(
+    'SELECT status FROM order_items WHERE order_id = $1',
+    orderId,
+  );
+  if (items.length === 0) return currentStatus;
+  const allFinal = items.every((it) => it.status !== 'a_collecter');
+  const next = allFinal ? 'prete' : 'en_preparation';
+  if (next === currentStatus) return currentStatus;
+  await db.run(
+    'UPDATE orders SET status = $1, updated_at = $2 WHERE id = $3',
+    next, new Date().toISOString(), orderId,
+  );
+  return next;
+}
+
 export const ordersRouter = Router();
 
 // POST /api/orders — créer une commande (client connecté).
@@ -369,12 +396,19 @@ ordersRouter.get('/orders', requireAdmin, async (req, res) => {
   return res.json({ ok: true, orders: out });
 });
 
-// PATCH /api/orders/{id}/status — statut de commande (admin).
+// PATCH /api/orders/{id}/status — changement de statut manuel
+// (admin). Limité à « terminee » et « annulee » : les statuts de
+// collecte (« en_preparation », « prete ») changent tout seuls quand
+// un article est pesé ou marqué (v0.7.2), « en_livraison » vient du
+// livreur qui démarre sa livraison. « terminee » sert surtout aux
+// cueillettes (remise du sac au client, sans livreur) ; « annulee »
+// annule une commande non fermée.
+const MANUAL_ORDER_STATUSES = ['terminee', 'annulee'];
 ordersRouter.patch('/orders/:id/status', requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const status = String(req.body?.status || '').trim();
-  if (!ORDER_STATUSES.includes(status)) {
-    return res.status(400).json({ ok: false, error: 'status_invalid', allowed: ORDER_STATUSES });
+  if (!MANUAL_ORDER_STATUSES.includes(status)) {
+    return res.status(400).json({ ok: false, error: 'status_invalid', allowed: MANUAL_ORDER_STATUSES });
   }
   const order = await get('SELECT * FROM orders WHERE id = $1', id);
   if (!order) return res.status(404).json({ ok: false, error: 'order_not_found' });
@@ -524,7 +558,12 @@ ordersRouter.patch('/orders/:id/items/:itemId/status', requireAdmin, async (req,
     await run('UPDATE order_items SET line_total_cents = 0 WHERE id = $1', itemId);
   }
   const updatedOrder = await get('SELECT * FROM orders WHERE id = $1', orderId);
-  await transaction(async (db) => recomputeTotals(db, updatedOrder));
+  await transaction(async (db) => {
+    await recomputeTotals(db, updatedOrder);
+    // Le ramassage a commencé (ou est fini) : le statut de la
+    // commande avance tout seul, sans que l'admin le change à la main.
+    await advanceCollectionStatus(db, orderId, updatedOrder.status);
+  });
   return res.json({ ok: true, order: await loadOrderWithItems(orderId) });
 });
 
@@ -560,7 +599,13 @@ ordersRouter.patch('/orders/:id/items/:itemId/weight', requireAdmin, async (req,
     weight_grams, line_total, itemId,
   );
   const updatedOrder = await get('SELECT * FROM orders WHERE id = $1', orderId);
-  const totals = await transaction(async (db) => recomputeTotals(db, updatedOrder));
+  const totals = await transaction(async (db) => {
+    const result = await recomputeTotals(db, updatedOrder);
+    // Pesée = début du ramassage : le statut de la commande avance
+    // tout seul, sans que l'admin le change à la main.
+    await advanceCollectionStatus(db, orderId, updatedOrder.status);
+    return result;
+  });
   return res.json({
     ok: true,
     order: await loadOrderWithItems(orderId),
