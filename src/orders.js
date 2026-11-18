@@ -11,7 +11,7 @@ import { quoteFees } from './fees.js';
 import { computeOrderTaxes } from './taxes.js';
 import { sendOrderReceipt } from './email.js';
 
-const ORDER_STATUSES = ['recue', 'en_preparation', 'prete', 'terminee', 'annulee'];
+const ORDER_STATUSES = ['recue', 'en_preparation', 'prete', 'en_livraison', 'terminee', 'annulee'];
 const ITEM_STATUSES = ['a_collecter', 'collecte', 'manquant'];
 
 const WEIGHT_MIN_G = 1;
@@ -78,18 +78,22 @@ function publicOrder(row, items) {
     receipt_email_sent_at: row.receipt_email_sent_at ?? null,
     delivery_code: row.delivery_code ?? null,
     delivery_zone: row.delivery_zone,
+    courier_id: row.courier_id ?? null,
+    courier_name: row.courier_name ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
     items: (items || []).map(publicItem),
   };
 }
 
-async function loadOrderWithItems(orderId) {
+export async function loadOrderWithItems(orderId) {
   const order = await get(
     `SELECT o.*, COALESCE(c.name, c.username) AS customer_name,
-            COALESCE(c.email, c.google_email) AS customer_email
+            COALESCE(c.email, c.google_email) AS customer_email,
+            cr.username AS courier_name
      FROM orders o
-     LEFT JOIN customers c ON c.id = o.customer_id WHERE o.id = $1`,
+     LEFT JOIN customers c ON c.id = o.customer_id
+     LEFT JOIN couriers cr ON cr.id = o.courier_id WHERE o.id = $1`,
     orderId,
   );
   if (!order) return null;
@@ -310,9 +314,11 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
 ordersRouter.get('/orders/mine', requireAuth, async (req, res) => {
   const orders = await all(
     `SELECT o.*, COALESCE(c.name, c.username) AS customer_name,
-            COALESCE(c.email, c.google_email) AS customer_email
+            COALESCE(c.email, c.google_email) AS customer_email,
+            cr.username AS courier_name
      FROM orders o
      LEFT JOIN customers c ON c.id = o.customer_id
+     LEFT JOIN couriers cr ON cr.id = o.courier_id
      WHERE o.customer_id = $1 ORDER BY o.id DESC`,
     req.customer.id,
   );
@@ -334,17 +340,21 @@ ordersRouter.get('/orders', requireAdmin, async (req, res) => {
   const orders = status && ORDER_STATUSES.includes(status)
     ? await all(
         `SELECT o.*, COALESCE(c.name, c.username) AS customer_name,
-                COALESCE(c.email, c.google_email) AS customer_email
+                COALESCE(c.email, c.google_email) AS customer_email,
+                cr.username AS courier_name
          FROM orders o
          LEFT JOIN customers c ON c.id = o.customer_id
+         LEFT JOIN couriers cr ON cr.id = o.courier_id
          WHERE o.status = $1 ORDER BY o.id DESC LIMIT $2`,
         status, limit,
       )
     : await all(
         `SELECT o.*, COALESCE(c.name, c.username) AS customer_name,
-                COALESCE(c.email, c.google_email) AS customer_email
+                COALESCE(c.email, c.google_email) AS customer_email,
+                cr.username AS courier_name
          FROM orders o
          LEFT JOIN customers c ON c.id = o.customer_id
+         LEFT JOIN couriers cr ON cr.id = o.courier_id
          ORDER BY o.id DESC LIMIT $1`,
         limit,
       );
@@ -386,6 +396,64 @@ ordersRouter.patch('/orders/:id/status', requireAdmin, async (req, res) => {
     sendOrderReceipt(id).catch((err) => console.error('[receipt]', err.message));
   }
   return res.json({ ok: true, order: await loadOrderWithItems(id) });
+});
+
+// PATCH /api/orders/{id}/assign — assigner un livreur à une commande
+// (admin). Corps : { courier_id } (null pour retirer l'assignation).
+// Refusé sur une commande terminée ou annulée.
+ordersRouter.patch('/orders/:id/assign', requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const courierId = req.body?.courier_id == null
+    ? null
+    : Number(req.body.courier_id);
+  if (courierId != null && (!Number.isInteger(courierId) || courierId <= 0)) {
+    return res.status(400).json({ ok: false, error: 'courier_invalid' });
+  }
+  const order = await get('SELECT * FROM orders WHERE id = $1', id);
+  if (!order) return res.status(404).json({ ok: false, error: 'order_not_found' });
+  if (order.status === 'terminee' || order.status === 'annulee') {
+    return res.status(409).json({ ok: false, error: 'order_closed' });
+  }
+  if (courierId != null) {
+    const courier = await get('SELECT id FROM couriers WHERE id = $1', courierId);
+    if (!courier) return res.status(404).json({ ok: false, error: 'courier_not_found' });
+  }
+  await run(
+    'UPDATE orders SET courier_id = $1, updated_at = $2 WHERE id = $3',
+    courierId, new Date().toISOString(), id,
+  );
+  return res.json({ ok: true, order: await loadOrderWithItems(id) });
+});
+
+// GET /api/orders/{id}/courier-position — position du livreur de SA
+// commande (client connecté, propriétaire de la commande), seulement
+// quand la commande est en livraison (statut en_livraison). Sinon 404
+// (pas de position à montrer — on ne révèle pas l'existence d'une
+// position en dehors de la livraison).
+ordersRouter.get('/orders/:id/courier-position', requireAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const order = await get('SELECT * FROM orders WHERE id = $1', id);
+  if (!order || order.customer_id !== req.customer.id) {
+    return res.status(404).json({ ok: false, error: 'order_not_found' });
+  }
+  if (order.status !== 'en_livraison') {
+    return res.status(404).json({ ok: false, error: 'position_not_available' });
+  }
+  const position = await get(
+    'SELECT lat, lng, updated_at FROM courier_positions WHERE order_id = $1',
+    id,
+  );
+  if (!position) {
+    return res.status(404).json({ ok: false, error: 'position_not_available' });
+  }
+  return res.json({
+    ok: true,
+    position: {
+      lat: position.lat,
+      lng: position.lng,
+      updated_at: position.updated_at,
+    },
+  });
 });
 
 // POST /api/admin/orders/{id}/resend-receipt — renvoyer le reçu par

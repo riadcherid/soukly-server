@@ -195,3 +195,28 @@ CREATE TABLE IF NOT EXISTS email_verification_codes (
 );
 CREATE INDEX IF NOT EXISTS idx_evc_email_purpose_created
   ON email_verification_codes (email, purpose, created_at);
+
+-- Évolutions v0.7.0 (idempotentes, rejouées à chaque démarrage) :
+-- espace Livreur (troisième espace de l'appli, avec Admin et Client) :
+-- comptes livreurs créés par l'admin (nom d'utilisateur + mot de
+-- passe, haché bcrypt — pas de vérification par e-mail, l'admin les
+-- crée) ; statut « en_livraison » (livreur en route) sur les commandes ;
+-- assignation d'un livreur à une commande ; dernière position connue
+-- du livreur par commande (une seule ligne par commande, mise à jour
+-- à chaque envoi — la position n'est partagée que pendant la livraison).
+CREATE TABLE IF NOT EXISTS couriers (
+  id SERIAL PRIMARY KEY,
+  username TEXT NOT NULL UNIQUE,
+  name TEXT,
+  password_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS courier_positions (
+  order_id INTEGER PRIMARY KEY REFERENCES orders(id),
+  courier_id INTEGER NOT NULL REFERENCES couriers(id) ON DELETE CASCADE,
+  lat DOUBLE PRECISION NOT NULL,
+  lng DOUBLE PRECISION NOT NULL,
+  updated_at TEXT NOT NULL
+);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS courier_id INTEGER REFERENCES couriers(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_orders_courier ON orders(courier_id);

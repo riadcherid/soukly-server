@@ -319,6 +319,73 @@ adminRouter.delete('/customers', async (req, res) => {
   return res.json({ ok: true, ...result });
 });
 
+// --- Livreurs (espace Livreur, v0.7.0) ---
+
+// Comptes livreurs : nom d'utilisateur + mot de passe (haché bcrypt),
+// créés par l'admin. Pas de vérification par e-mail : l'admin crée le
+// compte et donne les identifiants au livreur. Même règle de nom
+// d'utilisateur que les clients (3 à 30 caractères, minuscules).
+const COURIER_USERNAME_REGEX = /^[a-z0-9._-]{3,30}$/;
+const COURIER_PASSWORD_MIN_LENGTH = 8;
+
+function publicCourierRow(row) {
+  return {
+    id: row.id,
+    username: row.username,
+    name: row.name || row.username,
+    created_at: row.created_at,
+  };
+}
+
+// POST /api/admin/couriers — créer un compte livreur.
+// Corps : { username, password, name? }. Mot de passe 8 car. min.
+adminRouter.post('/couriers', async (req, res) => {
+  const username = String(req.body?.username || '').trim().toLowerCase();
+  const password = String(req.body?.password || '');
+  const name = String(req.body?.name || '').trim() || null;
+  if (!COURIER_USERNAME_REGEX.test(username)) {
+    return res.status(400).json({ ok: false, error: 'username_invalid' });
+  }
+  if (password.length < COURIER_PASSWORD_MIN_LENGTH) {
+    return res.status(400).json({ ok: false, error: 'password_too_short' });
+  }
+  const taken = await get('SELECT id FROM couriers WHERE username = $1', username);
+  if (taken) return res.status(409).json({ ok: false, error: 'username_taken' });
+  const result = await run(
+    `INSERT INTO couriers (username, name, password_hash, created_at)
+     VALUES ($1, $2, $3, $4) RETURNING *`,
+    username, name, bcrypt.hashSync(password, 10), new Date().toISOString(),
+  );
+  return res.status(201).json({ ok: true, courier: publicCourierRow(result.rows[0]) });
+});
+
+// GET /api/admin/couriers — liste des livreurs.
+adminRouter.get('/couriers', async (req, res) => {
+  const rows = await all('SELECT * FROM couriers ORDER BY username');
+  return res.json({ ok: true, couriers: rows.map(publicCourierRow) });
+});
+
+// DELETE /api/admin/couriers/{id} — supprimer un compte livreur.
+// Refusé s'il a des livraisons en cours (toute commande assignée non
+// terminée ni annulée) : réassignez-les d'abord. Les commandes
+// terminées gardent leur historique (courier_id passe à NULL,
+// ON DELETE SET NULL).
+adminRouter.delete('/couriers/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  const courier = await get('SELECT id FROM couriers WHERE id = $1', id);
+  if (!courier) return res.status(404).json({ ok: false, error: 'courier_not_found' });
+  const active = await get(
+    `SELECT id FROM orders WHERE courier_id = $1
+     AND status NOT IN ('terminee', 'annulee') LIMIT 1`,
+    id,
+  );
+  if (active) {
+    return res.status(409).json({ ok: false, error: 'courier_has_deliveries' });
+  }
+  await run('DELETE FROM couriers WHERE id = $1', id);
+  return res.json({ ok: true, deleted_id: id });
+});
+
 // --- Rayons ---
 
 // POST /api/admin/categories — ajouter / renommer un rayon.
