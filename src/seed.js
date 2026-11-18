@@ -8,7 +8,7 @@ import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { initSchema, transaction, close, get } from './db.js';
+import { initSchema, transaction, close, get, run } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const catalog = JSON.parse(
@@ -72,6 +72,29 @@ export async function seedCatalogIfEmpty() {
   if (row && row.count > 0) return { seeded: false, products: row.count };
   const result = await seedCatalog();
   return { seeded: true, ...result };
+}
+
+// Synchronise les photos des produits depuis catalog.json : remplit
+// image_key seulement quand il est vide (NULL) en base. Ne touche
+// jamais aux prix, aux dispos, ni à une photo déjà définie (une vraie
+// photo d'Épilys remplacera plus tard la photo générée par IA via
+// l'appli admin). Appelé à chaque démarrage : c'est ce qui met en
+// ligne les nouvelles photos après un déploiement, sans réécrire le
+// catalogue rempli.
+export async function syncProductImages() {
+  let updated = 0;
+  for (const p of catalog.products) {
+    if (!p.image_key) continue;
+    const result = await run(
+      'UPDATE products SET image_key = $1 WHERE id = $2 AND image_key IS NULL',
+      p.image_key, p.id,
+    );
+    updated += result.rowCount;
+  }
+  if (updated > 0) {
+    console.log(`Photos synchronisées : ${updated} produit(s) avec photo ajoutée.`);
+  }
+  return { updated };
 }
 
 // Ligne de commande : `npm run seed` (remplit toujours, upsert).
