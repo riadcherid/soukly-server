@@ -290,9 +290,12 @@ adminRouter.get('/customers', async (req, res) => {
 // POST /api/admin/customers/delete-selected — supprimer UN ou PLUSIEURS
 // comptes (cochés dans l'appli) et leurs commandes. Corps :
 // { ids: [1, 2], danger_password }. Une seule transaction : d'abord
-// les lignes des commandes concernées, puis leurs commandes, puis
-// les comptes. Ne touche jamais aux produits, rayons, réglages ou
-// à l'inventaire.
+// les messages et positions livreur des commandes concernées
+// (order_messages / courier_positions référencent orders(id) sans
+// ON DELETE CASCADE — sinon le DELETE des commandes viole la clé
+// étrangère), puis les lignes des commandes, puis leurs commandes,
+// puis les comptes. Ne touche jamais aux produits, rayons, réglages
+// ou à l'inventaire.
 adminRouter.post('/customers/delete-selected', async (req, res) => {
   const check = await verifyDangerPassword(req.body?.danger_password);
   if (!check.ok) return dangerPasswordError(res, check);
@@ -304,6 +307,14 @@ adminRouter.post('/customers/delete-selected', async (req, res) => {
     return res.status(400).json({ ok: false, error: 'ids_required' });
   }
   const result = await transaction(async (db) => {
+    await db.run(
+      'DELETE FROM order_messages WHERE order_id IN (SELECT id FROM orders WHERE customer_id = ANY($1))',
+      clean,
+    );
+    await db.run(
+      'DELETE FROM courier_positions WHERE order_id IN (SELECT id FROM orders WHERE customer_id = ANY($1))',
+      clean,
+    );
     await db.run(
       'DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE customer_id = ANY($1))',
       clean,
@@ -322,14 +333,18 @@ adminRouter.post('/customers/delete-selected', async (req, res) => {
 // leurs commandes (réinscription propre, ex. après un changement du
 // formulaire d'inscription). Mot de passe de la Zone dangereuse exigé
 // dans le corps : { danger_password }. Une seule transaction : d'abord
-// les lignes des commandes (order_items), puis les commandes, puis les
-// clients — `orders.customer_id` référence `customers(id)` sans
-// ON DELETE. Ne touche jamais aux produits, rayons, réglages ou à
-// l'inventaire.
+// les messages et positions livreur (order_messages /
+// courier_positions référencent orders(id) sans ON DELETE CASCADE),
+// puis les lignes des commandes (order_items), puis les commandes,
+// puis les clients — `orders.customer_id` référence `customers(id)`
+// sans ON DELETE. Ne touche jamais aux produits, rayons, réglages ou
+// à l'inventaire.
 adminRouter.delete('/customers', async (req, res) => {
   const check = await verifyDangerPassword(req.body?.danger_password);
   if (!check.ok) return dangerPasswordError(res, check);
   const result = await transaction(async (db) => {
+    await db.run('DELETE FROM order_messages');
+    await db.run('DELETE FROM courier_positions');
     await db.run('DELETE FROM order_items');
     const orders = await db.run('DELETE FROM orders');
     const customers = await db.run('DELETE FROM customers');
