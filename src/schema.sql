@@ -228,14 +228,37 @@ CREATE INDEX IF NOT EXISTS idx_orders_courier ON orders(courier_id);
 -- commande.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS dropoff_photo_key TEXT;
 
--- Évolutions v0.7.4 (idempotentes, rejouées à chaque démarrage) :
--- notifications push FCM : jetons d'appareil par destinataire
--- (client / livreur / admin ; l'admin n'a pas d'identifiant, owner_id
--- NULL). Un même jeton peut appartenir à plusieurs destinataires à
--- la fois (v0.7.5) : un téléphone utilisé comme client ET comme admin
--- doit recevoir les notifications des deux rôles. Avant, l'unicité
--- sur `token` seul transférait le jeton au dernier rôle synchronisé
--- et l'admin ne recevait plus rien sur ce téléphone.
+-- Évolutions v0.7.6 (idempotentes, rejouées à chaque démarrage) :
+-- rapport du jour : numéro de commande par jour (le compteur repart
+-- à 1 chaque jour, fuseau de Montréal) + clôture du rapport en fin
+-- de journée.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS daily_number INTEGER;
+CREATE TABLE IF NOT EXISTS daily_reports (
+  report_date TEXT PRIMARY KEY,
+  closed_at TEXT,
+  orders_count INTEGER NOT NULL DEFAULT 0,
+  total_cents INTEGER NOT NULL DEFAULT 0
+);
+-- Remplissage du numéro du jour pour les commandes existantes
+-- (numérotation par jour de Montréal, dans l'ordre de création).
+DO $$
+BEGIN
+  UPDATE orders o
+     SET daily_number = sub.rn
+    FROM (
+      SELECT id,
+             ROW_NUMBER() OVER (
+               PARTITION BY (created_at::timestamptz AT TIME ZONE 'America/Toronto')::date
+               ORDER BY created_at, id
+             ) AS rn
+        FROM orders
+    ) sub
+   WHERE o.id = sub.id AND o.daily_number IS NULL;
+END $$;
+
+-- Notifications push FCM (v0.7.4) : jetons d'appareil par
+-- destinataire (client / livreur / admin). Un même jeton peut
+-- appartenir à plusieurs destinataires à la fois (v0.7.5).
 CREATE TABLE IF NOT EXISTS device_tokens (
   id SERIAL PRIMARY KEY,
   owner_type TEXT NOT NULL CHECK (owner_type IN ('client', 'courier', 'admin')),

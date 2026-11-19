@@ -83,6 +83,7 @@ function publicOrder(row, items) {
     final_total_cents: row.final_total_cents,
     receipt_email_sent_at: row.receipt_email_sent_at ?? null,
     delivery_code: row.delivery_code ?? null,
+    daily_number: row.daily_number ?? null,
     delivery_zone: row.delivery_zone,
     courier_id: row.courier_id ?? null,
     courier_name: row.courier_name ?? null,
@@ -309,13 +310,21 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
 
   const order = await transaction(async (db) => {
     const deliveryCode = await generateDeliveryCode(db);
+    // Numéro de la commande dans le jour (fuseau de Montréal) : le
+    // compteur repart à 1 chaque jour (rapport du jour, v0.7.6).
+    const daily = await db.get(
+      `SELECT COALESCE(MAX(daily_number), 0) + 1 AS next_number FROM orders
+        WHERE (created_at::timestamptz AT TIME ZONE 'America/Toronto')::date
+          = (NOW() AT TIME ZONE 'America/Toronto')::date`,
+    );
+    const dailyNumber = daily?.next_number ?? 1;
     const result = await db.run(
       `INSERT INTO orders
          (customer_id, mode, status, address, postal_code, phone, note,
           delivery_fee_cents, service_fee_cents, tip_cents, tps_cents, tvq_cents, deposit_cents,
-          estimated_total_cents, total_cents, delivery_zone, delivery_code,
+          estimated_total_cents, total_cents, delivery_zone, delivery_code, daily_number,
           created_at, updated_at)
-       VALUES ($1, $2, 'recue', $3, $4, $5, $6, $7, $8, $9, $10, $11, $16, $12, $12, $13, $15, $14, $14)
+       VALUES ($1, $2, 'recue', $3, $4, $5, $6, $7, $8, $9, $10, $11, $16, $12, $12, $13, $15, $17, $14, $14)
        RETURNING *`,
       req.customer.id, mode,
       String(body.address || '').trim() || null,
@@ -324,7 +333,7 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
       String(body.note || '').trim() || null,
       fees.delivery_fee_cents, fees.service_fee_cents, tip,
       taxes.tps_cents, taxes.tvq_cents,
-      total, fees.delivery_zone, now, deliveryCode, deposit,
+      total, fees.delivery_zone, now, deliveryCode, deposit, dailyNumber,
     );
     const created = result.rows[0];
     for (const l of lines) {
