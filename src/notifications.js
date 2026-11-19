@@ -382,14 +382,53 @@ function formatMoney(cents) {
   return `${(cents / 100).toFixed(2).replace('.', ',')} $`;
 }
 
+/// Libellé du code de livraison à afficher dans un texte :
+/// ` (code 123456)` — ou '' si le code est absent (ne doit pas
+/// arriver : colonne NOT NULL depuis v0.6.1, remplie à la création).
+/// Seul identifiant montré au client et au livreur (v0.7.13) : ni
+/// l'id technique ni le numéro du jour ne sortent plus des textes
+/// de notification.
+export function deliveryCodeLabel(order) {
+  const code = String(order?.delivery_code || '').trim();
+  return code ? ` (code ${code})` : '';
+}
+
+/// Texte « Nouvelle commande » (admin) : le code suffit aussi à
+/// l'admin (le numéro du jour est dans l'appli et le rapport).
+export function newOrderBody(order) {
+  const modeLabel = order.mode === 'livraison' ? 'livraison' : 'cueillette';
+  return `Nouvelle commande${deliveryCodeLabel(order)} — ${modeLabel}, ${formatMoney(order.total_cents ?? 0)}.`;
+}
+
+/// Texte « Nouvelle livraison » (livreur).
+export function courierAssignedBody(order) {
+  const place = order.address || order.postal_code || '';
+  return `Commande à livrer${deliveryCodeLabel(order)}${place ? ` — ${place}` : ''}.`;
+}
+
+/// Texte de changement de statut (client), ou null si le statut
+/// n'a pas de message.
+export function orderStatusBody(status, order) {
+  const msg = STATUS_MESSAGES[status];
+  if (!msg) return null;
+  return msg.body(deliveryCodeLabel(order));
+}
+
+/// Texte « Commande déposée » (client).
+export function dropoffClientBody(order) {
+  return `Le livreur a déposé votre commande${deliveryCodeLabel(order)} devant votre porte (photo dans Mes commandes).`;
+}
+
+/// Texte « Dépôt avec photo » (admin).
+export function dropoffAdminBody(order) {
+  return `Commande${deliveryCodeLabel(order)} déposée devant la porte du client (photo).`;
+}
+
 /// Nouvelle commande → tous les jetons admin (« Nouvelle commande »).
 export async function notifyNewOrder(order) {
-  const modeLabel = order.mode === 'livraison' ? 'livraison' : 'cueillette';
   return notifyAdmins({
     title: 'Nouvelle commande',
-    body: `Nouvelle commande n° ${order.id} — ${modeLabel}, ${formatMoney(
-      order.total_cents ?? 0,
-    )}.`,
+    body: newOrderBody(order),
     data: {
       type: 'order',
       order_id: String(order.id),
@@ -401,10 +440,9 @@ export async function notifyNewOrder(order) {
 /// Commande assignée → le livreur.
 export async function notifyCourierAssigned(order) {
   if (order.courier_id == null) return { attempted: 0, sent: 0 };
-  const place = order.address || order.postal_code || '';
   return notifyCourier(order.courier_id, {
     title: 'Nouvelle livraison',
-    body: `Commande n° ${order.id} à livrer${place ? ` — ${place}` : ''}.`,
+    body: courierAssignedBody(order),
     data: {
       type: 'order',
       order_id: String(order.id),
@@ -416,23 +454,23 @@ export async function notifyCourierAssigned(order) {
 const STATUS_MESSAGES = {
   en_preparation: {
     title: 'Commande en préparation',
-    body: (id) => `Votre commande n° ${id} est en cours de préparation.`,
+    body: (label) => `Votre commande${label} est en cours de préparation.`,
   },
   prete: {
     title: 'Commande prête',
-    body: (id) => `Votre commande n° ${id} est prête, elle part bientôt.`,
+    body: (label) => `Votre commande${label} est prête, elle part bientôt.`,
   },
   en_livraison: {
     title: 'Livreur en route',
-    body: (id) => `Votre commande n° ${id} est en route.`,
+    body: (label) => `Votre commande${label} est en route.`,
   },
   terminee: {
     title: 'Commande livrée',
-    body: (id) => `Votre commande n° ${id} est livrée. Merci !`,
+    body: (label) => `Votre commande${label} est livrée. Merci !`,
   },
   annulee: {
     title: 'Commande annulée',
-    body: (id) => `Votre commande n° ${id} a été annulée.`,
+    body: (label) => `Votre commande${label} a été annulée.`,
   },
 };
 
@@ -443,7 +481,7 @@ export async function notifyOrderStatusChange(order, status) {
   if (!msg || order.customer_id == null) return { attempted: 0, sent: 0 };
   return notifyCustomer(order.customer_id, {
     title: msg.title,
-    body: msg.body(order.id),
+    body: orderStatusBody(status, order),
     data: {
       type: 'order',
       order_id: String(order.id),
@@ -459,7 +497,7 @@ export async function notifyDropoff(order) {
   if (order.customer_id != null) {
     const r = await notifyCustomer(order.customer_id, {
       title: 'Commande déposée',
-      body: `Le livreur a déposé votre commande n° ${order.id} devant votre porte (photo dans Mes commandes).`,
+      body: dropoffClientBody(order),
       data: {
         type: 'order',
         order_id: String(order.id),
@@ -471,7 +509,7 @@ export async function notifyDropoff(order) {
   }
   const a = await notifyAdmins({
     title: 'Dépôt avec photo',
-    body: `Commande n° ${order.id} déposée devant la porte du client (photo).`,
+    body: dropoffAdminBody(order),
     data: {
       type: 'order',
       order_id: String(order.id),

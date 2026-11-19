@@ -81,6 +81,14 @@ export function escapeHtml(text) {
     .replaceAll('"', '&quot;');
 }
 
+/// ` (code 123456)` — le seul identifiant de commande montré au
+/// client (v0.7.13) : ni l'id technique ni le numéro du jour ne
+/// sortent plus du reçu.
+function deliveryCodeLabel(order) {
+  const code = String(order?.delivery_code || '').trim();
+  return code ? ` (code ${code})` : '';
+}
+
 /// Construit le reçu (objet + corps texte + corps HTML rouge/blanc).
 /// `order` : ligne de la table orders ; `items` : lignes order_items ;
 /// `customerName` : nom du client.
@@ -127,7 +135,7 @@ export function buildReceiptEmail({ order, items, customerName }) {
   const textLines = [
     `Soukly — Votre marché partout`,
     ``,
-    `Merci ${customerName || 'cher client'} ! Voici le reçu de votre commande n° ${order.id} (${mode}, ${date}).`,
+    `Merci ${customerName || 'cher client'} ! Voici le reçu de votre commande${deliveryCodeLabel(order)} (${mode}, ${date}).`,
     ``,
     ...itemLines.map((l) => `- ${l.name} — ${l.detail}${l.missing} : ${l.total}`),
     ``,
@@ -158,7 +166,7 @@ export function buildReceiptEmail({ order, items, customerName }) {
       <div style="font-size:14px;">Votre marché partout</div>
     </div>
     <div style="border:1px solid #eee;border-top:none;padding:20px;border-radius:0 0 8px 8px;">
-      <h2 style="margin:0 0 4px;">Reçu de votre commande n° ${order.id}</h2>
+      <h2 style="margin:0 0 4px;">Reçu de votre commande${deliveryCodeLabel(order)}</h2>
       <p style="margin:0 0 16px;color:#555;">${mode} — ${escapeHtml(date)}</p>
       <p style="margin:0 0 4px;"><strong>${escapeHtml(customerName || 'Client')}</strong></p>
       ${order.address ? `<p style="margin:0;">${escapeHtml(order.address)}${order.postal_code ? `, ${escapeHtml(order.postal_code)}` : ''}</p>` : ''}
@@ -179,7 +187,7 @@ export function buildReceiptEmail({ order, items, customerName }) {
   </div>`;
 
   return {
-    subject: `Soukly — Reçu de votre commande n° ${order.id}`,
+    subject: `Soukly — Reçu de votre commande${deliveryCodeLabel(order)}`,
     text: textLines.join('\n'),
     html,
   };

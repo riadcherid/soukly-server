@@ -10,9 +10,15 @@ import crypto from 'node:crypto';
 
 import {
   buildServiceAccountJwt,
+  courierAssignedBody,
+  deliveryCodeLabel,
+  dropoffAdminBody,
+  dropoffClientBody,
   fcmAccessToken,
   isValidNotificationSound,
+  newOrderBody,
   notificationSoundSettings,
+  orderStatusBody,
   resetFcmStateForTests,
   sendFcmMessage,
   setFetchForTests,
@@ -146,7 +152,7 @@ test("l'envoi FCM construit la bonne requête HTTP v1 (son par défaut)", async 
     const result = await sendFcmMessage({
       token: 'fcm-token-xyz',
       title: 'Nouvelle commande',
-      body: 'Nouvelle commande n° 12 — livraison, 13,95 $.',
+      body: 'Nouvelle commande (code 123456) — livraison, 13,95 $.',
       data: { type: 'order', order_id: '12', role: 'admin' },
     });
     assert.deepEqual(result, { sent: true });
@@ -163,7 +169,7 @@ test("l'envoi FCM construit la bonne requête HTTP v1 (son par défaut)", async 
     assert.equal(payload.message.notification.title, 'Nouvelle commande');
     assert.equal(
       payload.message.notification.body,
-      'Nouvelle commande n° 12 — livraison, 13,95 $.',
+      'Nouvelle commande (code 123456) — livraison, 13,95 $.',
     );
     // Son par défaut du téléphone + canal « Commandes Soukly ».
     assert.equal(payload.message.android.notification.sound, 'default');
@@ -317,7 +323,7 @@ test("l'envoi FCM utilise le canal et le son du destinataire", async () => {
     const result = await sendFcmMessage({
       token: 'fcm-token-xyz',
       title: 'Nouvelle commande',
-      body: 'Nouvelle commande n° 12 — livraison, 13,95 $.',
+      body: 'Nouvelle commande (code 123456) — livraison, 13,95 $.',
       data: { type: 'order', order_id: '12', role: 'admin' },
       sound: 'long',
     });
@@ -365,4 +371,70 @@ test("l'envoi FCM avec un son inconnu retombe sur le défaut", async () => {
     resetFcmStateForTests();
     delete process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   }
+});
+
+// Textes de notification (v0.7.13) : le code à 6 chiffres est le seul
+// identifiant de commande montré — jamais l'id technique ni le numéro
+// du jour (le client et le livreur ne les voient plus).
+
+const ORDER_EXEMPLE = {
+  id: 8,
+  delivery_code: '123456',
+  daily_number: 6,
+  mode: 'livraison',
+  total_cents: 1395,
+  address: '5590 rue de Salaberry',
+  postal_code: 'H4J 1J6',
+};
+
+test('le libellé du code est ` (code 123456)` ou vide sans code', () => {
+  assert.equal(deliveryCodeLabel(ORDER_EXEMPLE), ' (code 123456)');
+  assert.equal(deliveryCodeLabel({ id: 8 }), '');
+  assert.equal(deliveryCodeLabel({}), '');
+  assert.equal(deliveryCodeLabel(null), '');
+});
+
+test('tous les textes de notification montrent le code, pas l’id', () => {
+  const bodies = [
+    newOrderBody(ORDER_EXEMPLE),
+    courierAssignedBody(ORDER_EXEMPLE),
+    orderStatusBody('en_preparation', ORDER_EXEMPLE),
+    orderStatusBody('prete', ORDER_EXEMPLE),
+    orderStatusBody('en_livraison', ORDER_EXEMPLE),
+    orderStatusBody('terminee', ORDER_EXEMPLE),
+    orderStatusBody('annulee', ORDER_EXEMPLE),
+    dropoffClientBody(ORDER_EXEMPLE),
+    dropoffAdminBody(ORDER_EXEMPLE),
+  ];
+  assert.equal(bodies.length, 9);
+  for (const body of bodies) {
+    assert.ok(body.includes('(code 123456)'), body);
+    assert.ok(!body.includes('n°'), body);
+    assert.ok(!body.includes('8'), body);
+  }
+  assert.equal(
+    newOrderBody(ORDER_EXEMPLE),
+    'Nouvelle commande (code 123456) — livraison, 13,95 $.',
+  );
+  assert.equal(
+    courierAssignedBody(ORDER_EXEMPLE),
+    'Commande à livrer (code 123456) — 5590 rue de Salaberry.',
+  );
+  assert.equal(
+    orderStatusBody('en_livraison', ORDER_EXEMPLE),
+    'Votre commande (code 123456) est en route.',
+  );
+});
+
+test('sans code, les textes restent lisibles et sans numéro', () => {
+  const sansCode = { id: 8, mode: 'cueillette', total_cents: 1000 };
+  assert.equal(
+    newOrderBody(sansCode),
+    'Nouvelle commande — cueillette, 10,00 $.',
+  );
+  assert.equal(
+    orderStatusBody('terminee', sansCode),
+    'Votre commande est livrée. Merci !',
+  );
+  assert.equal(orderStatusBody('inexistant', ORDER_EXEMPLE), null);
 });
