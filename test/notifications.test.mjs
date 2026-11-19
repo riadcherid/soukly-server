@@ -16,6 +16,8 @@ import {
   dropoffClientBody,
   fcmAccessToken,
   isValidNotificationSound,
+  messageNotificationBody,
+  messageNotificationTitle,
   newOrderBody,
   notificationSoundSettings,
   orderStatusBody,
@@ -437,4 +439,18 @@ test('sans code, les textes restent lisibles et sans numéro', () => {
     'Votre commande est livrée. Merci !',
   );
   assert.equal(orderStatusBody('inexistant', ORDER_EXEMPLE), null);
+});
+
+// Messagerie (v0.7.14) : titre selon l'expéditeur, corps tronqué.
+test('messageNotificationTitle : le client voit « Message du livreur »', () => {
+  assert.equal(messageNotificationTitle('courier'), 'Message du livreur');
+  assert.equal(messageNotificationTitle('client'), 'Message du client');
+});
+
+test('messageNotificationBody : message court intact, long tronqué à 120', () => {
+  assert.equal(messageNotificationBody('Je suis en bas !'), 'Je suis en bas !');
+  const long = 'x'.repeat(200);
+  const body = messageNotificationBody(long);
+  assert.equal(body.length, 120);
+  assert.ok(body.endsWith('…'));
 });

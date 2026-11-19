@@ -61,3 +61,26 @@ test('le reçu montre le code, pas l’id ni le numéro du jour', () => {
   assert.ok(mail.text.includes('Tomates'), mail.text);
   assert.ok(mail.text.includes('Total : 13,95 $'), mail.text);
 });
+
+// Code de remise (v0.7.14) : le reçu e-mail montre les deux codes
+// (le client connaît les deux) ; sans code à 4 chiffres, la ligne
+// n'apparaît pas.
+test('le reçu montre le code de remise à 4 chiffres quand il existe', () => {
+  const mail = buildReceiptEmail({
+    order: { ...ORDER_EXEMPLE, handover_code: '4829' },
+    items: ITEMS_EXEMPLE,
+    customerName: 'riadovitch',
+  });
+  assert.ok(mail.text.includes('Code de remise : 4829'), mail.text);
+  assert.ok(mail.html.includes('Code de remise : 4829'), mail.html);
+});
+
+test('le reçu ne montre pas de code de remise quand il est absent', () => {
+  const mail = buildReceiptEmail({
+    order: ORDER_EXEMPLE,
+    items: ITEMS_EXEMPLE,
+    customerName: 'riadovitch',
+  });
+  assert.ok(!mail.text.includes('Code de remise'), mail.text);
+  assert.ok(!mail.html.includes('Code de remise'), mail.html);
+});

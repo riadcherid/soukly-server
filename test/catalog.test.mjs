@@ -134,3 +134,21 @@ test('les 10 prix à 0 $ sont fixés depuis les reçus (au kg pour le poids)', (
   assert.equal(grenades.sold_by_weight, true);
   assert.equal(grenades.unit, 'le kg');
 });
+
+// Deux prix (v0.7.14) : chaque produit a un prix d'achat dans
+// catalog.json — c'est la source du seed. Les prix actuels viennent
+// des reçus Épilys, ce sont donc les prix d'achat : à la migration,
+// purchase_price_cents = price_cents et le prix de vente ne bouge pas.
+test('chaque produit a un prix d’achat (égal au prix de vente actuel)', () => {
+  for (const p of catalog.products) {
+    assert.ok(
+      Number.isInteger(p.purchase_price_cents) && p.purchase_price_cents >= 0,
+      `produit ${p.id} (${p.name}) : prix d'achat manquant`,
+    );
+    assert.equal(
+      p.purchase_price_cents,
+      p.price_cents,
+      `produit ${p.id} (${p.name}) : le prix d'achat doit égaler le prix de vente actuel`,
+    );
+  }
+});

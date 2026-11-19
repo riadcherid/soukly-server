@@ -2,9 +2,13 @@
 // Comptes livreurs créés par l'admin (nom d'utilisateur + mot de passe,
 // haché bcrypt — pas de vérification par e-mail, l'admin les crée).
 // Le livreur voit ses livraisons, démarre la livraison (envoi de sa
-// position GPS), et confirme la remise avec le code à 6 chiffres du
-// client — ou, si le client n'est pas là, en déposant la commande
-// devant la porte et en prenant une photo comme preuve (v0.7.3).
+// position GPS), et confirme la remise avec le code de remise à 4
+// chiffres du client (v0.7.14 — le code à 6 chiffres est
+// l'identifiant de commande, il ne confirme plus) — ou, si le client
+// n'est pas là, en déposant la commande devant la porte et en prenant
+// une photo comme preuve (v0.7.3). Le livreur ne reçoit JAMAIS le
+// code à 4 chiffres dans ses charges utiles : le client le lui donne
+// à la remise.
 // Le jeton JWT porte `courier_id` (les jetons clients portent
 // `customer_id`) : un jeton client ne passe pas `requireCourier`.
 import { Router } from 'express';
@@ -12,7 +16,7 @@ import bcrypt from 'bcryptjs';
 import fs from 'node:fs';
 import jwt from 'jsonwebtoken';
 import { all, get, run } from './db.js';
-import { loadOrderWithItems } from './orders.js';
+import { isValidHandoverCode, loadOrderWithItems } from './orders.js';
 import { sendOrderReceipt } from './email.js';
 import { photoUpload, photoUploadError } from './photos.js';
 import {
@@ -210,22 +214,27 @@ async function finalizeDelivery(order, { viaDropoff = false } = {}) {
 }
 
 // POST /api/courier/deliveries/{id}/confirm — confirmer la remise
-// avec le code à 6 chiffres du client : la commande passe en
-// « terminee » (le reçu part par e-mail comme quand l'admin termine
-// une commande) et le partage de position s'arrête (ligne supprimée).
+// avec le code de remise à 4 chiffres du client (v0.7.14) : la
+// commande passe en « terminee » (le reçu part par e-mail comme
+// quand l'admin termine une commande) et le partage de position
+// s'arrête (ligne supprimée). Le code à 6 chiffres est l'identifiant
+// de commande : il ne confirme PLUS la remise (un code à 6 chiffres
+// est refusé ici). Le livreur ne reçoit jamais le code à 4 chiffres
+// dans ses charges utiles : c'est le client qui le lui donne à la
+// remise, de vive voix.
 courierRouter.post('/courier/deliveries/:id/confirm', requireCourier, async (req, res) => {
   const id = Number(req.params.id);
-  const code = String(req.body?.delivery_code || '').trim();
-  if (!/^\d{6}$/.test(code)) {
-    return res.status(400).json({ ok: false, error: 'delivery_code_invalid' });
+  const code = String(req.body?.handover_code || '').trim();
+  if (!isValidHandoverCode(code)) {
+    return res.status(400).json({ ok: false, error: 'handover_code_invalid' });
   }
   const order = await loadAssignedOrder(id, req.courier.id);
   if (!order) return res.status(404).json({ ok: false, error: 'order_not_found' });
   if (order.status !== 'en_livraison') {
     return res.status(409).json({ ok: false, error: 'order_not_in_delivery' });
   }
-  if (code !== order.delivery_code) {
-    return res.status(403).json({ ok: false, error: 'delivery_code_invalid' });
+  if (code !== order.handover_code) {
+    return res.status(403).json({ ok: false, error: 'handover_code_invalid' });
   }
   const finished = await finalizeDelivery(order);
   return res.json({ ok: true, order: finished });

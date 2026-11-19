@@ -70,6 +70,8 @@ function toProduct(row) {
   // Unité de prix : source de vérité pour « vendu au poids »
   // ('lb' | 'kg' = au poids, 'piece' = à l'unité). Le repli sur la
   // colonne historique ne sert que si price_unit est absent.
+  // `purchase_price_cents` (v0.7.14) : prix d'achat, ADMIN SEULEMENT
+  // — ce sérialiseur n'est utilisé que par les routes admin.
   const priceUnit = row.price_unit || (row.sold_by_weight ? 'lb' : 'piece');
   return {
     id: row.id,
@@ -78,6 +80,7 @@ function toProduct(row) {
     category: row.category_key,
     unit: row.unit,
     price_cents: row.price_cents,
+    purchase_price_cents: row.purchase_price_cents ?? 0,
     price_unit: priceUnit,
     sold_by_weight: priceUnit === 'lb' || priceUnit === 'kg',
     on_special: row.on_special === true,
@@ -116,6 +119,9 @@ adminRouter.post('/products', async (req, res) => {
   if (!category) return res.status(400).json({ ok: false, error: 'category_not_found' });
 
   const price_cents = Math.max(0, Math.floor(Number(body.price_cents) || 0));
+  // Prix d'achat (v0.7.14) : ce que Riad paie chez Épilys. Admin
+  // seulement : il ne sort jamais dans le catalogue public.
+  const purchase_price_cents = Math.max(0, Math.floor(Number(body.purchase_price_cents) || 0));
   // Unité de prix : 'piece' | 'lb' | 'kg'. Si elle est absente (ancien
   // client), on la déduit de sold_by_weight. Le poids se déduit de
   // l'unité ('lb' | 'kg' = au poids) ; la colonne historique reste
@@ -140,17 +146,18 @@ adminRouter.post('/products', async (req, res) => {
       const result = await run(
         `UPDATE products SET name = $1, description = $2, category_key = $3, unit = $4,
            price_cents = $5, sold_by_weight = $6, available = $7, image_key = $8,
-           prepared = $9, price_unit = $10, on_special = $11, deposit_cents = $12
-         WHERE id = $13 RETURNING *`,
-        name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special, deposit_cents, id,
+           prepared = $9, price_unit = $10, on_special = $11, deposit_cents = $12,
+           purchase_price_cents = $13
+         WHERE id = $14 RETURNING *`,
+        name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special, deposit_cents, purchase_price_cents, id,
       );
       product = result.rows[0];
     } else {
       const result = await run(
         `INSERT INTO products
-           (id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special, deposit_cents)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
-        id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special, deposit_cents,
+           (id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special, deposit_cents, purchase_price_cents)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
+        id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special, deposit_cents, purchase_price_cents,
       );
       product = result.rows[0];
     }
@@ -158,9 +165,9 @@ adminRouter.post('/products', async (req, res) => {
     const next = await get('SELECT COALESCE(MAX(id), 0) + 1 AS id FROM products');
     const result = await run(
       `INSERT INTO products
-         (id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special, deposit_cents)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
-      next.id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special, deposit_cents,
+         (id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special, deposit_cents, purchase_price_cents)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
+      next.id, name, description, category_key, unit, price_cents, sold_by_weight, available, image_key, prepared, price_unit, on_special, deposit_cents, purchase_price_cents,
     );
     product = result.rows[0];
   }
@@ -476,9 +483,9 @@ adminRouter.delete('/categories/:key', async (req, res) => {
 
 // POST /api/admin/inventory — prix et dispos du jour.
 // Corps : { date?, note?, prices: [{ product_id, price_cents, available?,
-//   price_unit?, on_special?, deposit_cents? }] } — l'unité
-// ('piece' | 'lb' | 'kg'), le prix spécial et la consigne sont
-// facultatifs (un ancien client ne les envoie pas).
+//   price_unit?, on_special?, deposit_cents?, purchase_price_cents? }] } — l'unité
+// ('piece' | 'lb' | 'kg'), le prix spécial, la consigne et le prix
+// d'achat (v0.7.14) sont facultatifs (un ancien client ne les envoie pas).
 adminRouter.post('/inventory', async (req, res) => {
   const body = req.body || {};
   const prices = body.prices;
@@ -520,6 +527,16 @@ adminRouter.post('/inventory', async (req, res) => {
       }
       sets.push(`deposit_cents = $${params.length + 1}`);
       params.push(depositCents);
+    }
+    // Prix d'achat (v0.7.14) : fixé à l'inventaire du matin, comme le
+    // prix de vente. Il ne sort jamais dans le catalogue public.
+    if (p?.purchase_price_cents !== undefined) {
+      const purchaseCents = Math.floor(Number(p.purchase_price_cents));
+      if (!Number.isInteger(purchaseCents) || purchaseCents < 0) {
+        return res.status(400).json({ ok: false, error: 'purchase_price_invalid', product_id });
+      }
+      sets.push(`purchase_price_cents = $${params.length + 1}`);
+      params.push(purchaseCents);
     }
     params.push(product_id);
     await run(

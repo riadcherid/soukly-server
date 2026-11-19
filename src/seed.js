@@ -35,13 +35,14 @@ export async function seedCatalog() {
       // On ne l'écrase jamais à la mise à jour : l'unité choisie à
       // l'inventaire du matin (ex. 'kg') survit à un nouveau seed.
       // Idem pour on_special (prix spécial), géré par l'admin, et pour
-      // deposit_cents (consigne), prepared (aliment préparé, taxable) et
-      // tax_exempt (produit détaxé, ex. le café) : insérés à la création
-      // depuis catalog.json, jamais écrasés ensuite.
+      // deposit_cents (consigne), prepared (aliment préparé, taxable),
+      // tax_exempt (produit détaxé, ex. le café) et purchase_price_cents
+      // (prix d'achat, v0.7.14) : insérés à la création depuis
+      // catalog.json, jamais écrasés ensuite.
       await db.run(
         `INSERT INTO products
-           (id, name, description, category_key, unit, price_cents, sold_by_weight, price_unit, available, image_key, deposit_cents, prepared, tax_exempt)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+           (id, name, description, category_key, unit, price_cents, sold_by_weight, price_unit, available, image_key, deposit_cents, prepared, tax_exempt, purchase_price_cents)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          ON CONFLICT (id) DO UPDATE SET
            name = EXCLUDED.name, description = EXCLUDED.description,
            category_key = EXCLUDED.category_key, unit = EXCLUDED.unit,
@@ -51,6 +52,7 @@ export async function seedCatalog() {
         p.sold_by_weight, p.sold_by_weight ? 'lb' : 'piece', p.available, p.image_key,
         Math.max(0, Math.floor(Number(p.deposit_cents) || 0)), p.prepared === true,
         p.tax_exempt === true,
+        Math.max(0, Math.floor(Number(p.purchase_price_cents ?? p.price_cents) || 0)),
       );
     }
     await db.run(
@@ -165,13 +167,14 @@ export async function syncReceiptProducts() {
   for (const p of catalog.products) {
     const result = await run(
       `INSERT INTO products
-         (id, name, description, category_key, unit, price_cents, sold_by_weight, price_unit, available, image_key, deposit_cents, prepared, tax_exempt)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         (id, name, description, category_key, unit, price_cents, sold_by_weight, price_unit, available, image_key, deposit_cents, prepared, tax_exempt, purchase_price_cents)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (id) DO NOTHING`,
       p.id, p.name, p.description, p.category, p.unit, p.price_cents,
       p.sold_by_weight, p.sold_by_weight ? 'lb' : 'piece', p.available, p.image_key ?? null,
       Math.max(0, Math.floor(Number(p.deposit_cents) || 0)), p.prepared === true,
       p.tax_exempt === true,
+      Math.max(0, Math.floor(Number(p.purchase_price_cents ?? p.price_cents) || 0)),
     );
     inserted += result.rowCount;
     // Prix du reçu : seulement si le prix en base est encore à 0.

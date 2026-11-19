@@ -89,6 +89,18 @@ function deliveryCodeLabel(order) {
   return code ? ` (code ${code})` : '';
 }
 
+/// Ligne « Code de remise » du reçu (v0.7.14) : le client connaît
+/// les deux codes (le code à 6 chiffres = identifiant de commande,
+/// le code à 4 chiffres = à donner au livreur à la remise). Le bon
+/// de livraison collé sur le sac, lui, ne montre JAMAIS ce code
+/// (le livreur le voit).
+function handoverCodeLine(order) {
+  const code = String(order?.handover_code || '').trim();
+  return code
+    ? `Code de remise : ${code} — à donner au livreur à la remise.`
+    : '';
+}
+
 /// Construit le reçu (objet + corps texte + corps HTML rouge/blanc).
 /// `order` : ligne de la table orders ; `items` : lignes order_items ;
 /// `customerName` : nom du client.
@@ -136,6 +148,7 @@ export function buildReceiptEmail({ order, items, customerName }) {
     `Soukly — Votre marché partout`,
     ``,
     `Merci ${customerName || 'cher client'} ! Voici le reçu de votre commande${deliveryCodeLabel(order)} (${mode}, ${date}).`,
+    ...(handoverCodeLine(order) ? [handoverCodeLine(order)] : []),
     ``,
     ...itemLines.map((l) => `- ${l.name} — ${l.detail}${l.missing} : ${l.total}`),
     ``,
@@ -171,6 +184,7 @@ export function buildReceiptEmail({ order, items, customerName }) {
       <p style="margin:0 0 4px;"><strong>${escapeHtml(customerName || 'Client')}</strong></p>
       ${order.address ? `<p style="margin:0;">${escapeHtml(order.address)}${order.postal_code ? `, ${escapeHtml(order.postal_code)}` : ''}</p>` : ''}
       ${order.phone ? `<p style="margin:0;">Tél : ${escapeHtml(order.phone)}</p>` : ''}
+      ${handoverCodeLine(order) ? `<p style="margin:8px 0 0;"><strong>${escapeHtml(handoverCodeLine(order))}</strong></p>` : ''}
       ${order.note ? `<p style="margin:8px 0 0;">Note : ${escapeHtml(order.note)}</p>` : ''}
       <table style="width:100%;border-collapse:collapse;margin:16px 0 8px;border-top:2px solid #D32F2F;">
         ${itemRowsHtml}

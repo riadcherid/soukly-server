@@ -521,6 +521,44 @@ export async function notifyDropoff(order) {
   return results;
 }
 
+/// Titre de la notification de message (v0.7.14) : le destinataire
+/// voit qui lui écrit — le client voit « Message du livreur », le
+/// livreur voit « Message du client ».
+export function messageNotificationTitle(from) {
+  return from === 'courier' ? 'Message du livreur' : 'Message du client';
+}
+
+/// Corps de la notification de message : l'extrait du message
+/// (tronqué à 120 caractères, jamais le message entier si trop long).
+export function messageNotificationBody(body) {
+  const text = String(body || '').trim();
+  return text.length > 120 ? `${text.slice(0, 119)}…` : text;
+}
+
+/// Message dans l'appli (v0.7.14) → notification push au
+/// destinataire : le message du livreur va au client, celui du
+/// client va au livreur assigné (s'il y en a un — sinon personne à
+/// prévenir). `data.type` = 'message' : au tap, l'appli ouvre la
+/// conversation de la commande. Ne lève jamais.
+export async function notifyOrderMessage(order, from, body) {
+  const data = {
+    type: 'message',
+    order_id: String(order.id),
+    role: from === 'courier' ? 'client' : 'courier',
+  };
+  const payload = {
+    title: messageNotificationTitle(from),
+    body: messageNotificationBody(body),
+    data,
+  };
+  if (from === 'courier') {
+    if (order.customer_id == null) return { attempted: 0, sent: 0 };
+    return notifyCustomer(order.customer_id, payload);
+  }
+  if (order.courier_id == null) return { attempted: 0, sent: 0 };
+  return notifyCourier(order.courier_id, payload);
+}
+
 // ---------------------------------------------------------------------------
 // Authentification (client OU livreur OU admin) pour les routes jeton
 // ---------------------------------------------------------------------------

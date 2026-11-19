@@ -127,6 +127,7 @@
       "image_key": "tomates.webp",
       "name": "Tomates",
       "price_cents": 498,
+      "purchase_price_cents": 498,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -138,6 +139,7 @@
       "image_key": "bananes.jpg",
       "name": "Bananes",
       "price_cents": 190,
+      "purchase_price_cents": 190,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -149,6 +151,7 @@
       "image_key": "pommes.jpg",
       "name": "Pommes Gala",
       "price_cents": 348,
+      "purchase_price_cents": 348,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -160,6 +163,7 @@
       "image_key": "concombres.jpg",
       "name": "Concombres",
       "price_cents": 125,
+      "purchase_price_cents": 125,
       "sold_by_weight": false,
       "unit": "la pièce"
     },
@@ -171,6 +175,7 @@
       "image_key": "poulet.jpg",
       "name": "Poulet entier",
       "price_cents": 899,
+      "purchase_price_cents": 899,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -182,6 +187,7 @@
       "image_key": "boeuf-hache.jpg",
       "name": "Bœuf haché",
       "price_cents": 1199,
+      "purchase_price_cents": 1199,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -193,6 +199,7 @@
       "image_key": "saumon.jpg",
       "name": "Filets de saumon",
       "price_cents": 2198,
+      "purchase_price_cents": 2198,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -204,6 +211,7 @@
       "image_key": "lait.jpg",
       "name": "Lait frais",
       "price_cents": 279,
+      "purchase_price_cents": 279,
       "sold_by_weight": false,
       "unit": "la bouteille 1 L"
     },
@@ -215,6 +223,7 @@
       "image_key": "oeufs.jpg",
       "name": "Œufs bruns",
       "price_cents": 429,
+      "purchase_price_cents": 429,
       "sold_by_weight": false,
       "unit": "la douzaine"
     },
@@ -226,6 +235,7 @@
       "image_key": "cheddar.png",
       "name": "Cheddar fort",
       "price_cents": 849,
+      "purchase_price_cents": 849,
       "sold_by_weight": false,
       "unit": "le bloc 400 g"
     },
@@ -237,6 +247,7 @@
       "image_key": "baguette.jpg",
       "name": "Baguette",
       "price_cents": 195,
+      "purchase_price_cents": 195,
       "sold_by_weight": false,
       "unit": "la pièce"
     },
@@ -248,6 +259,7 @@
       "image_key": "croissants.jpg",
       "name": "Croissants",
       "price_cents": 599,
+      "purchase_price_cents": 599,
       "sold_by_weight": false,
       "unit": "le paquet de 4"
     },
@@ -259,6 +271,7 @@
       "image_key": "pain-mie.jpg",
       "name": "Pain de mie",
       "price_cents": 349,
+      "purchase_price_cents": 349,
       "sold_by_weight": false,
       "unit": "le pain"
     },
@@ -270,6 +283,7 @@
       "image_key": "riz.webp",
       "name": "Riz basmati",
       "price_cents": 999,
+      "purchase_price_cents": 999,
       "sold_by_weight": false,
       "unit": "le sac de 2 kg"
     },
@@ -281,6 +295,7 @@
       "image_key": "pates.webp",
       "name": "Spaghetti",
       "price_cents": 229,
+      "purchase_price_cents": 229,
       "sold_by_weight": false,
       "unit": "le paquet 900 g"
     },
@@ -292,6 +307,7 @@
       "image_key": "huile-olive.jpg",
       "name": "Huile d'olive",
       "price_cents": 1199,
+      "purchase_price_cents": 1199,
       "sold_by_weight": false,
       "unit": "la bouteille 750 ml"
     },
@@ -303,6 +319,7 @@
       "image_key": "tomates-conserve.png",
       "name": "Tomates en conserve",
       "price_cents": 179,
+      "purchase_price_cents": 179,
       "sold_by_weight": false,
       "unit": "la boîte 796 ml"
     },
@@ -315,6 +332,7 @@
       "image_key": "jus-orange.jpg",
       "name": "Jus d'orange frais",
       "price_cents": 549,
+      "purchase_price_cents": 549,
       "sold_by_weight": false,
       "unit": "la bouteille 1,5 L"
     },
@@ -326,6 +344,7 @@
       "image_key": "cafe.jpg",
       "name": "Café en grains",
       "price_cents": 1299,
+      "purchase_price_cents": 1299,
       "sold_by_weight": false,
       "tax_exempt": true,
       "unit": "le sac 500 g"
@@ -339,6 +358,7 @@
       "image_key": "eau-petillante.png",
       "name": "Eau pétillante",
       "price_cents": 699,
+      "purchase_price_cents": 699,
       "sold_by_weight": false,
       "unit": "le paquet de 12"
     },
@@ -350,6 +370,7 @@
       "image_key": "petits-pois.png",
       "name": "Petits pois surgelés",
       "price_cents": 329,
+      "purchase_price_cents": 329,
       "sold_by_weight": false,
       "unit": "le sac 750 g"
     },
@@ -361,6 +382,7 @@
       "image_key": "creme-glacee.jpg",
       "name": "Crème glacée vanille",
       "price_cents": 649,
+      "purchase_price_cents": 649,
       "sold_by_weight": false,
       "unit": "le pot 1,5 L"
     },
@@ -372,6 +394,7 @@
       "image_key": "liquide-vaisselle.jpg",
       "name": "Liquide vaisselle",
       "price_cents": 399,
+      "purchase_price_cents": 399,
       "sold_by_weight": false,
       "unit": "la bouteille 740 ml"
     },
@@ -383,6 +406,7 @@
       "image_key": "essuie-tout.webp",
       "name": "Essuie-tout",
       "price_cents": 799,
+      "purchase_price_cents": 799,
       "sold_by_weight": false,
       "unit": "le paquet de 6"
     },
@@ -394,6 +418,7 @@
       "image_key": "pommes-de-terre.webp",
       "name": "Pommes de terre",
       "price_cents": 284,
+      "purchase_price_cents": 284,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -405,6 +430,7 @@
       "image_key": "oignons.webp",
       "name": "Oignons",
       "price_cents": 109,
+      "purchase_price_cents": 109,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -416,6 +442,7 @@
       "image_key": "carottes.webp",
       "name": "Carottes",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -427,6 +454,7 @@
       "image_key": "poivrons.webp",
       "name": "Poivrons",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -438,6 +466,7 @@
       "image_key": "laitue-romaine.webp",
       "name": "Laitue romaine",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": false,
       "unit": "la pièce"
     },
@@ -449,6 +478,7 @@
       "image_key": "aubergines.webp",
       "name": "Aubergines",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -460,6 +490,7 @@
       "image_key": "courgettes.webp",
       "name": "Courgettes",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -471,6 +502,7 @@
       "image_key": "citrons.webp",
       "name": "Citrons",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -482,6 +514,7 @@
       "image_key": "oranges.webp",
       "name": "Oranges",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -493,6 +526,7 @@
       "image_key": "mangues.webp",
       "name": "Mangues",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": false,
       "unit": "la pièce"
     },
@@ -504,6 +538,7 @@
       "image_key": "grenades.webp",
       "name": "Grenades",
       "price_cents": 879,
+      "purchase_price_cents": 879,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -515,6 +550,7 @@
       "image_key": "clementines.webp",
       "name": "Clémentines",
       "price_cents": 659,
+      "purchase_price_cents": 659,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -526,6 +562,7 @@
       "image_key": "cuisses-poulet.webp",
       "name": "Cuisses de poulet",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -537,6 +574,7 @@
       "image_key": "pilons-poulet.webp",
       "name": "Pilons de poulet",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -548,6 +586,7 @@
       "image_key": "crevettes.webp",
       "name": "Crevettes",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -559,6 +598,7 @@
       "image_key": "bologne-poulet-halal.webp",
       "name": "Bologne de poulet halal",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": false,
       "unit": "le paquet"
     },
@@ -570,6 +610,7 @@
       "image_key": "patisseries-orientales.webp",
       "name": "Pâtisseries orientales",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": false,
       "unit": "la boîte"
     },
@@ -581,6 +622,7 @@
       "image_key": "semoule-fine.webp",
       "name": "Semoule fine",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": false,
       "unit": "le sac 1 kg"
     },
@@ -592,6 +634,7 @@
       "image_key": "dattes-medjool.webp",
       "name": "Dattes Medjool",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": false,
       "unit": "la boîte"
     },
@@ -603,6 +646,7 @@
       "image_key": "dattes-algeriennes.webp",
       "name": "Dattes algériennes",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": false,
       "unit": "la boîte"
     },
@@ -614,6 +658,7 @@
       "image_key": "olives.webp",
       "name": "Olives en vrac",
       "price_cents": 958,
+      "purchase_price_cents": 958,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -625,6 +670,7 @@
       "image_key": "miel.webp",
       "name": "Miel",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": false,
       "unit": "le pot"
     },
@@ -636,6 +682,7 @@
       "image_key": "ghee.webp",
       "name": "Ghee",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": false,
       "unit": "le pot"
     },
@@ -648,6 +695,7 @@
       "image_key": "soda-hamoud.webp",
       "name": "Soda Hamoud Boualem",
       "price_cents": 249,
+      "purchase_price_cents": 249,
       "sold_by_weight": false,
       "unit": "la bouteille"
     },
@@ -659,6 +707,7 @@
       "image_key": "frites-surgelees.webp",
       "name": "Frites surgelées",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": false,
       "unit": "le sac"
     },
@@ -670,6 +719,7 @@
       "image_key": "poires.webp",
       "name": "Poires",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -681,6 +731,7 @@
       "image_key": "fraises.webp",
       "name": "Fraises",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": false,
       "unit": "la barquette"
     },
@@ -692,6 +743,7 @@
       "image_key": "raisins.webp",
       "name": "Raisins",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -703,6 +755,7 @@
       "image_key": "avocats.webp",
       "name": "Avocats",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": false,
       "unit": "la pièce"
     },
@@ -714,6 +767,7 @@
       "image_key": "ananas.webp",
       "name": "Ananas",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": false,
       "unit": "la pièce"
     },
@@ -725,6 +779,7 @@
       "image_key": "kiwis.webp",
       "name": "Kiwis",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -736,6 +791,7 @@
       "image_key": "ail.webp",
       "name": "Ail",
       "price_cents": 498,
+      "purchase_price_cents": 498,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -747,6 +803,7 @@
       "image_key": "persil.webp",
       "name": "Persil",
       "price_cents": 99,
+      "purchase_price_cents": 99,
       "sold_by_weight": false,
       "unit": "la botte"
     },
@@ -758,6 +815,7 @@
       "image_key": "brocoli.webp",
       "name": "Brocoli",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -769,6 +827,7 @@
       "image_key": "ailes-poulet.webp",
       "name": "Ailes de poulet",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -780,6 +839,7 @@
       "image_key": "blanc-poulet.webp",
       "name": "Blanc de poulet",
       "price_cents": 1199,
+      "purchase_price_cents": 1199,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -791,6 +851,7 @@
       "image_key": "cotelettes-agneau.webp",
       "name": "Côtelettes d'agneau",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -802,6 +863,7 @@
       "image_key": "gigot-agneau.webp",
       "name": "Gigot d'agneau",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -813,6 +875,7 @@
       "image_key": "merguez.webp",
       "name": "Merguez halal",
       "price_cents": 1999,
+      "purchase_price_cents": 1999,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -824,6 +887,7 @@
       "image_key": "sardines.webp",
       "name": "Sardines",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -835,6 +899,7 @@
       "image_key": "millefeuille.webp",
       "name": "Millefeuille",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": false,
       "unit": "la pièce"
     },
@@ -846,6 +911,7 @@
       "image_key": "tartelette-fruits.webp",
       "name": "Tartelette aux fruits",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": false,
       "unit": "la pièce"
     },
@@ -857,6 +923,7 @@
       "image_key": "trois-chocolats.webp",
       "name": "Pâtisserie trois chocolats",
       "price_cents": 0,
+      "purchase_price_cents": 0,
       "sold_by_weight": false,
       "unit": "la pièce"
     },
@@ -867,6 +934,7 @@
       "id": 68,
       "name": "Margarine végétale Labelle 500 g",
       "price_cents": 499,
+      "purchase_price_cents": 499,
       "sold_by_weight": false,
       "unit": "le pot 500 g"
     },
@@ -877,6 +945,7 @@
       "id": 69,
       "name": "Sucre granulé Redpath 2 kg",
       "price_cents": 399,
+      "purchase_price_cents": 399,
       "sold_by_weight": false,
       "unit": "le sac 2 kg"
     },
@@ -887,6 +956,7 @@
       "id": 70,
       "name": "Huile de tournesol Sara 3 L",
       "price_cents": 1149,
+      "purchase_price_cents": 1149,
       "sold_by_weight": false,
       "unit": "la bouteille 3 L"
     },
@@ -898,6 +968,7 @@
       "id": 71,
       "name": "Jus d’orange et pêche Ifruit 1 L",
       "price_cents": 249,
+      "purchase_price_cents": 249,
       "sold_by_weight": false,
       "unit": "la bouteille 1 L"
     },
@@ -908,6 +979,7 @@
       "id": 72,
       "name": "Lait sans lactose Natrel 2 % 1 L",
       "price_cents": 389,
+      "purchase_price_cents": 389,
       "sold_by_weight": false,
       "unit": "la bouteille 1 L"
     },
@@ -918,6 +990,7 @@
       "id": 73,
       "name": "Champignons entiers Cedar 284 ml",
       "price_cents": 199,
+      "purchase_price_cents": 199,
       "sold_by_weight": false,
       "unit": "la boîte 284 ml"
     },
@@ -928,6 +1001,7 @@
       "id": 74,
       "name": "Cannelle en bâton Tayeb 150 g",
       "price_cents": 399,
+      "purchase_price_cents": 399,
       "sold_by_weight": false,
       "unit": "le paquet 150 g"
     },
@@ -938,6 +1012,7 @@
       "id": 75,
       "name": "Galette junior Bimo 230 g",
       "price_cents": 149,
+      "purchase_price_cents": 149,
       "sold_by_weight": false,
       "unit": "le paquet 230 g"
     },
@@ -948,6 +1023,7 @@
       "id": 76,
       "name": "Poivre noir moulu Chatar 150 g",
       "price_cents": 549,
+      "purchase_price_cents": 549,
       "sold_by_weight": false,
       "unit": "le paquet 150 g"
     },
@@ -958,6 +1034,7 @@
       "id": 77,
       "name": "Paprika Tayeb 150 g",
       "price_cents": 399,
+      "purchase_price_cents": 399,
       "sold_by_weight": false,
       "unit": "le paquet 150 g"
     },
@@ -968,6 +1045,7 @@
       "id": 78,
       "name": "Épices kefta Tayeb 150 g",
       "price_cents": 399,
+      "purchase_price_cents": 399,
       "sold_by_weight": false,
       "unit": "le paquet 150 g"
     },
@@ -978,6 +1056,7 @@
       "id": 79,
       "name": "Café moulu 1001 250 g",
       "price_cents": 649,
+      "purchase_price_cents": 649,
       "sold_by_weight": false,
       "tax_exempt": true,
       "unit": "le paquet 250 g"
@@ -989,6 +1068,7 @@
       "id": 80,
       "name": "Curcuma moulu Tayeb 150 g",
       "price_cents": 399,
+      "purchase_price_cents": 399,
       "sold_by_weight": false,
       "unit": "le paquet 150 g"
     },
@@ -999,6 +1079,7 @@
       "id": 81,
       "name": "Double mix vanille chocolat Bimo 200 g",
       "price_cents": 149,
+      "purchase_price_cents": 149,
       "sold_by_weight": false,
       "unit": "le paquet 200 g"
     },
@@ -1009,6 +1090,7 @@
       "id": 82,
       "name": "Torsade Kenz 500 g",
       "price_cents": 249,
+      "purchase_price_cents": 249,
       "sold_by_weight": false,
       "unit": "le paquet 500 g"
     },
@@ -1019,6 +1101,7 @@
       "id": 83,
       "name": "Béchamel mix Easy Cook 75 g",
       "price_cents": 149,
+      "purchase_price_cents": 149,
       "sold_by_weight": false,
       "unit": "le paquet 75 g"
     },
@@ -1029,6 +1112,7 @@
       "id": 84,
       "name": "Mayonnaise Lesieur 500 ml",
       "price_cents": 399,
+      "purchase_price_cents": 399,
       "sold_by_weight": false,
       "unit": "le pot 500 ml"
     },
@@ -1039,6 +1123,7 @@
       "id": 85,
       "name": "Spaghetti Kayna 500 g",
       "price_cents": 249,
+      "purchase_price_cents": 249,
       "sold_by_weight": false,
       "unit": "le paquet 500 g"
     },
@@ -1049,6 +1134,7 @@
       "id": 86,
       "name": "Riz basmati Sela Valli 750 g",
       "price_cents": 429,
+      "purchase_price_cents": 429,
       "sold_by_weight": false,
       "unit": "le sac 750 g"
     },
@@ -1059,6 +1145,7 @@
       "id": 87,
       "name": "Ketchup Lesieur 485 g",
       "price_cents": 399,
+      "purchase_price_cents": 399,
       "sold_by_weight": false,
       "unit": "la bouteille 485 g"
     },
@@ -1069,6 +1156,7 @@
       "id": 88,
       "name": "Coulis de tomates Mutti 680 ml",
       "price_cents": 499,
+      "purchase_price_cents": 499,
       "sold_by_weight": false,
       "unit": "la bouteille 680 ml"
     },
@@ -1079,6 +1167,7 @@
       "id": 89,
       "name": "Sel de mer Delphi 750 g",
       "price_cents": 249,
+      "purchase_price_cents": 249,
       "sold_by_weight": false,
       "unit": "le paquet 750 g"
     },
@@ -1089,6 +1178,7 @@
       "id": 90,
       "name": "Vinaigre au citron Casbah 750 ml",
       "price_cents": 99,
+      "purchase_price_cents": 99,
       "sold_by_weight": false,
       "unit": "la bouteille 750 ml"
     },
@@ -1099,6 +1189,7 @@
       "id": 91,
       "name": "Feuilles de laurier Tayeb 15 g",
       "price_cents": 229,
+      "purchase_price_cents": 229,
       "sold_by_weight": false,
       "unit": "le paquet 15 g"
     },
@@ -1109,6 +1200,7 @@
       "id": 92,
       "name": "Pommes jaunes",
       "price_cents": 218,
+      "purchase_price_cents": 218,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -1120,6 +1212,7 @@
       "name": "Poulet rôti",
       "prepared": true,
       "price_cents": 1399,
+      "purchase_price_cents": 1399,
       "sold_by_weight": false,
       "unit": "la pièce"
     },
@@ -1130,6 +1223,7 @@
       "id": 94,
       "name": "Pain sous-marin",
       "price_cents": 49,
+      "purchase_price_cents": 49,
       "sold_by_weight": false,
       "unit": "la pièce"
     },
@@ -1140,6 +1234,7 @@
       "id": 95,
       "name": "Menthe fraîche",
       "price_cents": 99,
+      "purchase_price_cents": 99,
       "sold_by_weight": false,
       "unit": "la botte"
     },
@@ -1150,6 +1245,7 @@
       "id": 96,
       "name": "Pesos Bimo",
       "price_cents": 149,
+      "purchase_price_cents": 149,
       "sold_by_weight": false,
       "unit": "le paquet"
     },
@@ -1161,6 +1257,7 @@
       "name": "Salade zaalouk",
       "prepared": true,
       "price_cents": 399,
+      "purchase_price_cents": 399,
       "sold_by_weight": false,
       "unit": "le pot"
     },
@@ -1172,6 +1269,7 @@
       "name": "Salade de carottes",
       "prepared": true,
       "price_cents": 299,
+      "purchase_price_cents": 299,
       "sold_by_weight": false,
       "unit": "le kg"
     },
@@ -1182,6 +1280,7 @@
       "id": 99,
       "name": "Pain régulier",
       "price_cents": 49,
+      "purchase_price_cents": 49,
       "sold_by_weight": false,
       "unit": "la pièce"
     }

@@ -313,3 +313,73 @@ END $$;
 -- le jus Ifruit reste taxé. La taxe reste décidée par rayon par
 -- défaut ; le flag ne fait que l'annuler produit par produit.
 ALTER TABLE products ADD COLUMN IF NOT EXISTS tax_exempt BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Évolutions v0.7.14 (idempotentes, rejouées à chaque démarrage) :
+-- 1) Deux prix par produit (décision de Riad, 2026-11-19) :
+--    `purchase_price_cents` = ce que Riad paie chez Épilys (prix
+--    d'achat, ADMIN SEULEMENT — il ne sort jamais dans le catalogue
+--    public ni dans les commandes vues par le client/livreur) ;
+--    `price_cents` reste le prix de vente (ce que paie le client).
+--    Les prix actuels du catalogue viennent des reçus Épilys, ce
+--    sont donc des prix d'achat : à la migration, le prix d'achat
+--    prend le prix de vente actuel, et le prix de vente ne bouge
+--    pas. Le remplissage ne touche que les valeurs à 0 : un prix
+--    d'achat fixé par l'admin survit aux redémarrages.
+--    Le prix d'achat est aussi figé sur chaque ligne de commande
+--    (`order_items.purchase_price_cents`, NULL pour les anciennes
+--    lignes) : la marge historique reste exacte même si le prix
+--    d'achat du produit change ensuite.
+ALTER TABLE products ADD COLUMN IF NOT EXISTS purchase_price_cents INTEGER NOT NULL DEFAULT 0;
+UPDATE products SET purchase_price_cents = price_cents WHERE purchase_price_cents = 0;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS purchase_price_cents INTEGER;
+
+-- 2) Code de remise à 4 chiffres (décision de Riad, 2026-11-19) :
+--    `handover_code` (1000–9999), unique entre les commandes en
+--    cours — c'est LUI qui confirme la remise au livreur (le code
+--    à 6 chiffres reste l'identifiant de commande, affiché partout,
+--    mais ne confirme plus). Le client et l'admin le connaissent ;
+--    le livreur ne le reçoit JAMAIS (ni liste, ni détail, ni
+--    notification). Les commandes existantes en cours en reçoivent
+--    un à la migration (même logique que le code à 6 chiffres).
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS handover_code TEXT;
+DO $$
+DECLARE
+  r RECORD;
+  c TEXT;
+  done BOOLEAN;
+BEGIN
+  FOR r IN SELECT id FROM orders WHERE handover_code IS NULL ORDER BY id LOOP
+    done := FALSE;
+    WHILE NOT done LOOP
+      c := (1000 + floor(random() * 9000))::TEXT;
+      UPDATE orders SET handover_code = c
+      WHERE id = r.id
+        AND NOT EXISTS (
+          SELECT 1 FROM orders o2
+          WHERE o2.handover_code = c AND o2.id <> r.id
+            AND o2.status NOT IN ('terminee', 'annulee')
+        );
+      IF FOUND THEN done := TRUE; END IF;
+    END LOOP;
+  END LOOP;
+END $$;
+ALTER TABLE orders ALTER COLUMN handover_code SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_handover_code_active
+  ON orders (handover_code) WHERE status NOT IN ('terminee', 'annulee');
+
+-- 3) Messagerie dans l'appli, par commande (décision de Riad,
+--    2026-11-19 : « sms par l'application pas par téléphone ») :
+--    le client et le livreur assigné échangent des messages liés à
+--    la commande (pas de chat global) ; l'admin peut les lire.
+--    `sender_id` est l'id du client ou du livreur selon
+--    `sender_type` (pas de clé étrangère unique possible).
+CREATE TABLE IF NOT EXISTS order_messages (
+  id SERIAL PRIMARY KEY,
+  order_id INTEGER NOT NULL REFERENCES orders(id),
+  sender_type TEXT NOT NULL CHECK (sender_type IN ('client', 'courier')),
+  sender_id INTEGER NOT NULL,
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_order_messages_order
+  ON order_messages (order_id);

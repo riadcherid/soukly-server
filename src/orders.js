@@ -45,6 +45,30 @@ async function generateDeliveryCode(db) {
   throw new Error('delivery_code_exhausted');
 }
 
+// Code de remise à 4 chiffres (1000–9999, v0.7.14), unique entre les
+// commandes en cours : c'est LUI qui confirme la remise au livreur
+// (le code à 6 chiffres reste l'identifiant de commande). Même
+// logique que le code à 6 chiffres ; l'index unique partiel
+// idx_orders_handover_code_active protège contre les courses
+// concurrentes. Le livreur ne reçoit JAMAIS ce code (voir
+// publicOrder : il n'est inclus que pour le client et l'admin).
+export function isValidHandoverCode(code) {
+  return /^\d{4}$/.test(String(code || '').trim());
+}
+
+async function generateHandoverCode(db) {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const code = String(1000 + Math.floor(Math.random() * 9000));
+    const clash = await db.get(
+      `SELECT 1 FROM orders WHERE handover_code = $1
+       AND status NOT IN ('terminee', 'annulee')`,
+      code,
+    );
+    if (!clash) return code;
+  }
+  throw new Error('handover_code_exhausted');
+}
+
 function publicItem(row) {
   return {
     id: row.id,
@@ -60,7 +84,15 @@ function publicItem(row) {
   };
 }
 
-function publicOrder(row, items) {
+/// Sérialiseur public d'une commande. `handover_code` (code de remise
+/// à 4 chiffres, v0.7.14) n'est inclus QUE quand `includeHandoverCode`
+/// est vrai : le client (ses commandes) et l'admin le connaissent, le
+/// livreur ne le reçoit JAMAIS (ni liste des livraisons, ni détail,
+/// ni notification). Le code à 6 chiffres (`delivery_code`) reste
+/// l'identifiant de commande, visible par tout le monde. Le prix
+/// d'achat n'apparaît jamais ici : ni sur la commande, ni sur ses
+/// lignes (la marge est calculée côté serveur, dans stats/reports).
+function publicOrder(row, items, { includeHandoverCode = false } = {}) {
   return {
     id: row.id,
     customer_id: row.customer_id,
@@ -83,6 +115,7 @@ function publicOrder(row, items) {
     final_total_cents: row.final_total_cents,
     receipt_email_sent_at: row.receipt_email_sent_at ?? null,
     delivery_code: row.delivery_code ?? null,
+    handover_code: includeHandoverCode ? (row.handover_code ?? null) : undefined,
     daily_number: row.daily_number ?? null,
     delivery_zone: row.delivery_zone,
     courier_id: row.courier_id ?? null,
@@ -94,7 +127,7 @@ function publicOrder(row, items) {
   };
 }
 
-export async function loadOrderWithItems(orderId) {
+export async function loadOrderWithItems(orderId, options = {}) {
   const order = await get(
     `SELECT o.*, COALESCE(c.name, c.username) AS customer_name,
             COALESCE(c.email, c.google_email) AS customer_email,
@@ -109,7 +142,7 @@ export async function loadOrderWithItems(orderId) {
     'SELECT * FROM order_items WHERE order_id = $1 ORDER BY id',
     orderId,
   );
-  return publicOrder(order, items);
+  return publicOrder(order, items, options);
 }
 
 // Consigne d'une commande : somme (deposit_cents du produit × quantité).
@@ -273,6 +306,9 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
       prepared: product.prepared === true,
       taxExempt: product.tax_exempt === true,
       depositCents: product.deposit_cents ?? 0,
+      // Prix d'achat figé sur la ligne (v0.7.14) : la marge historique
+      // reste exacte même si le prix d'achat du produit change ensuite.
+      purchasePriceCents: product.purchase_price_cents ?? 0,
       quantity,
       weight_grams,
       unit_price_cents: product.price_cents,
@@ -312,6 +348,9 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
 
   const order = await transaction(async (db) => {
     const deliveryCode = await generateDeliveryCode(db);
+    // Code de remise à 4 chiffres (v0.7.14) : unique entre les
+    // commandes en cours, comme le code à 6 chiffres.
+    const handoverCode = await generateHandoverCode(db);
     // Numéro de la commande dans le jour (fuseau de Montréal) : le
     // compteur repart à 1 chaque jour (rapport du jour, v0.7.6).
     const daily = await db.get(
@@ -324,9 +363,9 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
       `INSERT INTO orders
          (customer_id, mode, status, address, postal_code, phone, note,
           delivery_fee_cents, service_fee_cents, tip_cents, tps_cents, tvq_cents, deposit_cents,
-          estimated_total_cents, total_cents, delivery_zone, delivery_code, daily_number,
+          estimated_total_cents, total_cents, delivery_zone, delivery_code, daily_number, handover_code,
           created_at, updated_at)
-       VALUES ($1, $2, 'recue', $3, $4, $5, $6, $7, $8, $9, $10, $11, $16, $12, $12, $13, $15, $17, $14, $14)
+       VALUES ($1, $2, 'recue', $3, $4, $5, $6, $7, $8, $9, $10, $11, $16, $12, $12, $13, $15, $17, $18, $14, $14)
        RETURNING *`,
       req.customer.id, mode,
       String(body.address || '').trim() || null,
@@ -335,23 +374,23 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
       String(body.note || '').trim() || null,
       fees.delivery_fee_cents, fees.service_fee_cents, tip,
       taxes.tps_cents, taxes.tvq_cents,
-      total, fees.delivery_zone, now, deliveryCode, deposit, dailyNumber,
+      total, fees.delivery_zone, now, deliveryCode, deposit, dailyNumber, handoverCode,
     );
     const created = result.rows[0];
     for (const l of lines) {
       await db.run(
         `INSERT INTO order_items
            (order_id, product_id, product_name, quantity, weight_grams,
-            unit_price_cents, line_total_cents, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'a_collecter')`,
+            unit_price_cents, line_total_cents, status, purchase_price_cents)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'a_collecter', $8)`,
         created.id, l.product_id, l.product_name, l.quantity, l.weight_grams,
-        l.unit_price_cents, l.line_total_cents,
+        l.unit_price_cents, l.line_total_cents, l.purchasePriceCents,
       );
     }
     return created;
   });
 
-  const full = await loadOrderWithItems(order.id);
+  const full = await loadOrderWithItems(order.id, { includeHandoverCode: true });
   // Nouvelle commande : l'admin reçoit une notification push
   // « Nouvelle commande » (jamais bloquant).
   notifyNewOrder(full).catch((err) =>
@@ -378,7 +417,7 @@ ordersRouter.get('/orders/mine', requireAuth, async (req, res) => {
       'SELECT * FROM order_items WHERE order_id = $1 ORDER BY id',
       order.id,
     );
-    out.push(publicOrder(order, items));
+    out.push(publicOrder(order, items, { includeHandoverCode: true }));
   }
   return res.json({ ok: true, orders: out });
 });
@@ -414,7 +453,7 @@ ordersRouter.get('/orders', requireAdmin, async (req, res) => {
       'SELECT * FROM order_items WHERE order_id = $1 ORDER BY id',
       order.id,
     );
-    out.push(publicOrder(order, items));
+    out.push(publicOrder(order, items, { includeHandoverCode: true }));
   }
   return res.json({ ok: true, orders: out });
 });
@@ -452,7 +491,7 @@ ordersRouter.patch('/orders/:id/status', requireAdmin, async (req, res) => {
   if (status === 'terminee' && !wasTerminee && !order.receipt_email_sent_at) {
     sendOrderReceipt(id).catch((err) => console.error('[receipt]', err.message));
   }
-  const full = await loadOrderWithItems(id);
+  const full = await loadOrderWithItems(id, { includeHandoverCode: true });
   // Le client est averti quand sa commande est terminée ou annulée.
   if (status === 'terminee' || status === 'annulee') {
     notifyOrderStatusChange(full, status).catch((err) =>
@@ -486,7 +525,7 @@ ordersRouter.patch('/orders/:id/assign', requireAdmin, async (req, res) => {
     'UPDATE orders SET courier_id = $1, updated_at = $2 WHERE id = $3',
     courierId, new Date().toISOString(), id,
   );
-  const full = await loadOrderWithItems(id);
+  const full = await loadOrderWithItems(id, { includeHandoverCode: true });
   // Commande assignée : le livreur reçoit une notification push.
   if (courierId != null) {
     notifyCourierAssigned(full).catch((err) =>
@@ -553,7 +592,7 @@ ordersRouter.post('/admin/orders/:id/resend-receipt', requireAdmin, async (req, 
     });
   }
   return res.json({
-    ok: true, order: await loadOrderWithItems(id),
+    ok: true, order: await loadOrderWithItems(id, { includeHandoverCode: true }),
     sent_at: result.sent_at, to: result.to,
   });
 });
@@ -602,7 +641,7 @@ ordersRouter.patch('/orders/:id/items/:itemId/status', requireAdmin, async (req,
     // commande avance tout seul, sans que l'admin le change à la main.
     newStatus = await advanceCollectionStatus(db, orderId, updatedOrder.status);
   });
-  const full = await loadOrderWithItems(orderId);
+  const full = await loadOrderWithItems(orderId, { includeHandoverCode: true });
   // Statut avancé tout seul (en préparation / prête) : le client est
   // averti par notification push.
   if (newStatus !== updatedOrder.status) {
@@ -653,7 +692,7 @@ ordersRouter.patch('/orders/:id/items/:itemId/weight', requireAdmin, async (req,
     newStatus = await advanceCollectionStatus(db, orderId, updatedOrder.status);
     return result;
   });
-  const full = await loadOrderWithItems(orderId);
+  const full = await loadOrderWithItems(orderId, { includeHandoverCode: true });
   // Statut avancé tout seul (en préparation / prête) : le client est
   // averti par notification push.
   if (newStatus !== updatedOrder.status) {

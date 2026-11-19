@@ -62,6 +62,15 @@ test('autre boisson sans flag (jus d\'orange frais, 549 ¢) : toujours taxée', 
   );
 });
 
+test('jouets et jeux (clé jouets-et-jeux, 1000 ¢) : TPS + TVQ', () => {
+  // Régression 2026-11-19 : la clé était 'jouets-jeux' et ne correspondait
+  // à aucun rayon, donc les jouets n'étaient jamais taxés.
+  assert.deepEqual(
+    taxForLine({ categoryKey: 'jouets-et-jeux', quantity: 1, lineTotalCents: 1000 }),
+    { tps: 50, tvq: 105 },
+  );
+});
+
 test('le flag détaxé l\'emporte même sur un produit préparé', () => {
   assert.deepEqual(
     taxForLine({ categoryKey: 'boissons', prepared: true, taxExempt: true, quantity: 1, lineTotalCents: 1000 }),

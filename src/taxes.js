@@ -33,7 +33,7 @@ export const TAXABLE_CATEGORIES = new Set([
   'animaux',
   'fleurs-et-plantes',
   'fete',
-  'jouets-jeux',
+  'jouets-et-jeux',
 ]);
 
 const PATISSERIE_CATEGORY = 'patisserie';

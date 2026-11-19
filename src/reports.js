@@ -39,6 +39,47 @@ function displayedTotal(order) {
   return order.final_total_cents ?? order.total_cents ?? 0;
 }
 
+// Marge produits d'un jour (v0.7.14) : même règle que
+// ORDER_LINE_MARGIN_SQL dans stats.js (prix d'achat figé sur la
+// ligne, sinon prix d'achat actuel du produit ; article manquant :
+// 0 ; article au poids : poids pesé sinon estimé). Les frais ne
+// comptent pas. Dupliqué ici pour éviter un import circulaire
+// stats ↔ reports — garder les deux synchronisés.
+const DAY_MARGIN_SQL = `
+  CASE
+    WHEN oi.status = 'manquant' THEN 0
+    WHEN oi.weight_grams IS NOT NULL THEN
+      oi.line_total_cents - ROUND(COALESCE(oi.collected_weight_grams, oi.weight_grams) * COALESCE(oi.purchase_price_cents, p.purchase_price_cents, 0) / 1000.0)
+    ELSE
+      oi.line_total_cents - oi.quantity * COALESCE(oi.purchase_price_cents, p.purchase_price_cents, 0)
+  END`;
+
+async function dayMarginCents(date) {
+  const rows = await all(
+    `SELECT COALESCE(SUM(${DAY_MARGIN_SQL}), 0)::int AS margin_cents
+       FROM order_items oi
+       JOIN orders o ON o.id = oi.order_id
+       LEFT JOIN products p ON p.id = oi.product_id
+      WHERE o.status <> 'annulee'
+        AND ${MONTREAL_DATE_SQL} = $1`,
+    date,
+  );
+  return rows[0]?.margin_cents ?? 0;
+}
+
+async function dayMarginsByDate() {
+  const rows = await all(
+    `SELECT ${MONTREAL_DATE_SQL} AS report_date,
+            COALESCE(SUM(${DAY_MARGIN_SQL}), 0)::int AS margin_cents
+       FROM order_items oi
+       JOIN orders o ON o.id = oi.order_id
+       LEFT JOIN products p ON p.id = oi.product_id
+      WHERE o.status <> 'annulee'
+      GROUP BY report_date`,
+  );
+  return new Map(rows.map((r) => [formatDate(r.report_date), r.margin_cents]));
+}
+
 async function dayOrders(date) {
   const rows = await all(
     `SELECT id FROM orders WHERE ${MONTREAL_DATE_SQL} = $1 ORDER BY daily_number, id`,
@@ -46,16 +87,17 @@ async function dayOrders(date) {
   );
   const orders = [];
   for (const row of rows) {
-    const full = await loadOrderWithItems(row.id);
+    const full = await loadOrderWithItems(row.id, { includeHandoverCode: true });
     if (full) orders.push(full);
   }
   return orders;
 }
 
-function totalsFor(orders) {
+function totalsFor(orders, marginCents = 0) {
   return {
     orders_count: orders.length,
     total_cents: orders.reduce((sum, o) => sum + displayedTotal(o), 0),
+    margin_cents: marginCents,
     livraisons: orders.filter((o) => o.mode === 'livraison').length,
     cueillettes: orders.filter((o) => o.mode !== 'livraison').length,
     terminees: orders.filter((o) => o.status === 'terminee').length,
@@ -80,6 +122,7 @@ reportsRouter.get('/reports', async (req, res) => {
   const closedByDate = new Map(
     closed.map((r) => [r.report_date, r.closed_at]),
   );
+  const margins = await dayMarginsByDate();
   return res.json({
     ok: true,
     reports: days.map((d) => {
@@ -88,6 +131,7 @@ reportsRouter.get('/reports', async (req, res) => {
         date,
         orders_count: d.orders_count,
         total_cents: d.total_cents,
+        margin_cents: margins.get(date) ?? 0,
         closed_at: closedByDate.get(date) ?? null,
       };
     }),
@@ -106,6 +150,7 @@ reportsRouter.get('/reports/:date', async (req, res) => {
     'SELECT closed_at, orders_count, total_cents FROM daily_reports WHERE report_date = $1',
     date,
   );
+  const marginCents = await dayMarginCents(date);
   return res.json({
     ok: true,
     report: {
@@ -114,7 +159,7 @@ reportsRouter.get('/reports/:date', async (req, res) => {
       closed_orders_count: closed?.orders_count ?? null,
       closed_total_cents: closed?.total_cents ?? null,
       orders,
-      totals: totalsFor(orders),
+      totals: totalsFor(orders, marginCents),
     },
   });
 });
@@ -137,6 +182,7 @@ reportsRouter.post('/reports/:date/close', async (req, res) => {
   );
   if (existing?.closed_at) {
     const orders = await dayOrders(date);
+    const marginCents = await dayMarginCents(date);
     return res.json({
       ok: true,
       report: {
@@ -145,7 +191,7 @@ reportsRouter.post('/reports/:date/close', async (req, res) => {
         closed_orders_count: existing.orders_count,
         closed_total_cents: existing.total_cents,
         orders,
-        totals: totalsFor(orders),
+        totals: totalsFor(orders, marginCents),
       },
     });
   }
@@ -153,7 +199,8 @@ reportsRouter.post('/reports/:date/close', async (req, res) => {
   if (orders.length === 0) {
     return res.status(400).json({ ok: false, error: 'report_empty' });
   }
-  const totals = totalsFor(orders);
+  const marginCents = await dayMarginCents(date);
+  const totals = totalsFor(orders, marginCents);
   const now = new Date().toISOString();
   await run(
     `INSERT INTO daily_reports (report_date, closed_at, orders_count, total_cents)

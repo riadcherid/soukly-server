@@ -27,6 +27,52 @@ function montrealDateSql(column) {
 
 const MAX_RANGE_DAYS = 365;
 
+/// Marge produits d'une ligne de commande (fragment SQL, v0.7.14) :
+/// prix de vente (line_total_cents — montant final pesé ou estimé)
+/// moins coût d'achat. Le coût utilise le prix d'achat figé sur la
+/// ligne, ou, pour les anciennes lignes (NULL), le prix d'achat
+/// actuel du produit. Article au poids : coût = poids effectif
+/// (pesé, sinon estimé) × prix d'achat au kg / 1000. Article
+/// manquant : 0 (rien reçu, rien acheté — sa ligne est déjà à 0).
+/// Les frais de livraison/service ne comptent pas dans la marge
+/// produits. `oi` = order_items, `p` = products (jointure LEFT).
+export const ORDER_LINE_MARGIN_SQL = `
+  CASE
+    WHEN oi.status = 'manquant' THEN 0
+    WHEN oi.weight_grams IS NOT NULL THEN
+      oi.line_total_cents - ROUND(COALESCE(oi.collected_weight_grams, oi.weight_grams) * COALESCE(oi.purchase_price_cents, p.purchase_price_cents, 0) / 1000.0)
+    ELSE
+      oi.line_total_cents - oi.quantity * COALESCE(oi.purchase_price_cents, p.purchase_price_cents, 0)
+  END`;
+
+/// Marge d'une ligne, en cents (même règle que le SQL ci-dessus) —
+/// version JS pure, testée dans test/stats.test.mjs. `line` :
+/// { line_total_cents, quantity, weight_grams?,
+///   collected_weight_grams?, purchase_price_cents?, status? }.
+export function lineMarginCents(line) {
+  if (!line || line.status === 'manquant') return 0;
+  const purchase = Math.max(0, Math.floor(Number(line.purchase_price_cents) || 0));
+  const total = Math.max(0, Math.floor(Number(line.line_total_cents) || 0));
+  if (line.weight_grams != null) {
+    const grams = Math.max(
+      0,
+      Math.floor(Number(line.collected_weight_grams ?? line.weight_grams) || 0),
+    );
+    return total - Math.round((grams * purchase) / 1000);
+  }
+  const qty = Math.max(0, Math.floor(Number(line.quantity) || 0));
+  return total - qty * purchase;
+}
+
+/// Pourcentage de marge d'un produit : (vente − achat) / achat × 100.
+/// null quand le prix d'achat est à 0 (aucun % affichable — l'appli
+/// affiche « — »). Ex. achat 500, vente 575 → +15 %.
+export function marginPercent(purchaseCents, saleCents) {
+  const purchase = Number(purchaseCents) || 0;
+  if (purchase <= 0) return null;
+  return ((Number(saleCents) - purchase) / purchase) * 100;
+}
+
 export function isValidDate(value) {
   return (
     typeof value === 'string' &&
@@ -108,6 +154,21 @@ statsRouter.get('/stats/summary', async (req, res) => {
     from,
     to,
   );
+  // Marge produits de la période (v0.7.14) : somme des marges des
+  // lignes vendues, commandes annulées exclues. Les lignes sans prix
+  // d'achat figé (anciennes) utilisent le prix d'achat actuel du
+  // produit (voir ORDER_LINE_MARGIN_SQL).
+  const margin = await all(
+    `SELECT COALESCE(SUM(${ORDER_LINE_MARGIN_SQL}), 0)::int AS margin_cents
+       FROM order_items oi
+       JOIN orders o ON o.id = oi.order_id
+       LEFT JOIN products p ON p.id = oi.product_id
+      WHERE o.status <> 'annulee'
+        AND ${montrealDateSql('o.created_at')} >= $1
+        AND ${montrealDateSql('o.created_at')} <= $2`,
+    from,
+    to,
+  );
   const t = totals[0];
   const salesCount = t.orders_count - t.annulees;
   return res.json({
@@ -117,6 +178,7 @@ statsRouter.get('/stats/summary', async (req, res) => {
       to,
       orders_count: t.orders_count,
       total_cents: t.total_cents,
+      margin_cents: margin[0]?.margin_cents ?? 0,
       avg_order_cents: salesCount > 0 ? Math.round(t.total_cents / salesCount) : 0,
       terminees: t.terminees,
       annulees: t.annulees,
