@@ -1,6 +1,8 @@
 // Migration du catalogue de l'appli web vers la base Postgres du serveur.
 // Source : src/data/catalog.json (export fidèle de l'action `listcatalog`
-// de l'artifact marche-epicerie, 2026-11-14 : 19 rayons, 67 produits).
+// de l'artifact marche-epicerie, 2026-11-14 ; refonte des rayons v0.7.8 :
+// 22 rayons, 67 produits — « Viandes et poissons » scindé en « Viandes
+// halal », « Poulet », « Poissons », plus « Orientaux et Maghrébins »).
 // Idempotent : on peut le relancer, il remplace les données du catalogue.
 // Charge .env comme index.js : sans ça, `npm run seed` seul retombe sur
 // le mot de passe par défaut de db.js et échoue en auth_failed.
@@ -54,6 +56,12 @@ export async function seedCatalog() {
        ON CONFLICT (id) DO UPDATE SET date = EXCLUDED.date, note = EXCLUDED.note, updated_at = EXCLUDED.updated_at`,
       catalog.inventory.date, catalog.inventory.note, catalog.inventory.updated_at,
     );
+    // Le rayon fusionné « viandes-poissons » a disparu du catalogue
+    // (v0.7.8) : une fois ses produits réassignés, on le retire.
+    await db.run(
+      `DELETE FROM categories WHERE key = 'viandes-poissons'
+       AND NOT EXISTS (SELECT 1 FROM products WHERE category_key = 'viandes-poissons')`,
+    );
   });
 
   console.log(
@@ -72,6 +80,51 @@ export async function seedCatalogIfEmpty() {
   if (row && row.count > 0) return { seeded: false, products: row.count };
   const result = await seedCatalog();
   return { seeded: true, ...result };
+}
+
+// Migration des rayons (v0.7.8, une seule fois) : « Viandes et
+// poissons » est scindé en « Viandes halal », « Poulet », « Poissons »,
+// et « Orientaux et Maghrébins » est ajouté. Appelé à chaque
+// démarrage, mais il ne fait quelque chose que si le rayon fusionné
+// existe encore en base : après la migration, les renommages faits
+// par l'admin dans l'appli ne sont plus jamais écrasés. Ne touche
+// ni aux prix, ni aux dispos, ni aux produits hors du rayon fusionné
+// (un produit que l'admin a déjà déplacé ailleurs reste où il est).
+export async function syncCatalogCategories() {
+  const legacy = await get(
+    "SELECT key FROM categories WHERE key = 'viandes-poissons'",
+  );
+  if (!legacy) return { migrated: false };
+  const byId = new Map(catalog.products.map((p) => [p.id, p]));
+  await transaction(async (db) => {
+    for (const c of catalog.categories) {
+      await db.run(
+        `INSERT INTO categories (key, label, sort) VALUES ($1, $2, $3)
+         ON CONFLICT (key) DO UPDATE SET label = EXCLUDED.label, sort = EXCLUDED.sort`,
+        c.key, c.label, c.sort,
+      );
+    }
+    const rows = await db.all(
+      "SELECT id FROM products WHERE category_key = 'viandes-poissons'",
+    );
+    for (const row of rows) {
+      const target = byId.get(row.id);
+      if (target) {
+        await db.run(
+          'UPDATE products SET category_key = $1 WHERE id = $2',
+          target.category, row.id,
+        );
+      }
+    }
+    await db.run(
+      `DELETE FROM categories WHERE key = 'viandes-poissons'
+       AND NOT EXISTS (SELECT 1 FROM products WHERE category_key = 'viandes-poissons')`,
+    );
+  });
+  console.log(
+    'Rayons migrés : « Viandes et poissons » scindé en « Viandes halal », « Poulet », « Poissons » + « Orientaux et Maghrébins ».',
+  );
+  return { migrated: true };
 }
 
 // Synchronise les photos des produits depuis catalog.json : remplit

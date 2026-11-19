@@ -413,6 +413,17 @@ adminRouter.delete('/couriers/:id', async (req, res) => {
 
 // --- Rayons ---
 
+// GET /api/admin/categories — liste des rayons avec le nombre de
+// produits dans chacun (écran admin « Rayons »).
+adminRouter.get('/categories', async (req, res) => {
+  const categories = await all(
+    `SELECT c.key, c.label, c.sort, COUNT(p.id)::int AS product_count
+     FROM categories c LEFT JOIN products p ON p.category_key = c.key
+     GROUP BY c.key, c.label, c.sort ORDER BY c.sort`,
+  );
+  return res.json({ ok: true, categories });
+});
+
 // POST /api/admin/categories — ajouter / renommer un rayon.
 adminRouter.post('/categories', async (req, res) => {
   const body = req.body || {};
@@ -435,6 +446,30 @@ adminRouter.post('/categories', async (req, res) => {
   }
   const category = await get('SELECT key, label, sort FROM categories WHERE key = $1', key);
   return res.status(201).json({ ok: true, category });
+});
+
+// DELETE /api/admin/categories/:key — supprimer un rayon vide.
+// Refusé (409) si des produits l'utilisent encore : il faut d'abord
+// les déplacer dans un autre rayon (écran « Produits »).
+adminRouter.delete('/categories/:key', async (req, res) => {
+  const key = String(req.params.key || '').trim();
+  const category = await get('SELECT key FROM categories WHERE key = $1', key);
+  if (!category) {
+    return res.status(404).json({ ok: false, error: 'category_not_found' });
+  }
+  const used = await get(
+    'SELECT COUNT(*)::int AS count FROM products WHERE category_key = $1',
+    key,
+  );
+  if (used && used.count > 0) {
+    return res.status(409).json({
+      ok: false,
+      error: 'category_has_products',
+      product_count: used.count,
+    });
+  }
+  await run('DELETE FROM categories WHERE key = $1', key);
+  return res.json({ ok: true, deleted_key: key });
 });
 
 // --- Inventaire du matin ---

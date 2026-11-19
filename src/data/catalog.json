@@ -11,89 +11,104 @@
       "sort": 2
     },
     {
-      "key": "viandes-poissons",
-      "label": "Viandes et poissons",
+      "key": "viandes-halal",
+      "label": "Viandes halal",
       "sort": 3
+    },
+    {
+      "key": "poulet",
+      "label": "Poulet",
+      "sort": 4
+    },
+    {
+      "key": "poissons",
+      "label": "Poissons",
+      "sort": 5
     },
     {
       "key": "laitages-oeufs",
       "label": "Laitages et œufs",
-      "sort": 4
+      "sort": 6
     },
     {
       "key": "boulangerie",
       "label": "Boulangerie",
-      "sort": 5
+      "sort": 7
     },
     {
       "key": "patisserie",
       "label": "Pâtisserie",
-      "sort": 6
+      "sort": 8
+    },
+    {
+      "key": "orientaux-maghrebins",
+      "label": "Orientaux et Maghrébins",
+      "sort": 9
     },
     {
       "key": "epicerie-seche",
       "label": "Épicerie sèche et conserves",
-      "sort": 7
+      "sort": 10
     },
     {
       "key": "boissons",
       "label": "Boissons",
-      "sort": 8
+      "sort": 11
     },
     {
       "key": "surgeles",
       "label": "Surgelés",
-      "sort": 9
+      "sort": 12
     },
     {
       "key": "menager",
       "label": "Produits ménagers",
-      "sort": 10
+      "sort": 13
     },
     {
       "key": "promotions",
       "label": "Promotions",
-      "sort": 11
+      "sort": 14
     },
     {
       "key": "grignotines",
       "label": "Grignotines",
-      "sort": 12
+      "sort": 15
     },
     {
       "key": "soins-personnels-et-beaute",
       "label": "Soins personnels et beauté",
-      "sort": 13
+      "sort": 16
     },
     {
       "key": "bebe-et-enfant",
       "label": "Bébé et enfant",
-      "sort": 14
+      "sort": 17
     },
     {
       "key": "animaux",
       "label": "Animaux",
-      "sort": 15
+      "sort": 18
     },
     {
       "key": "sante",
       "label": "Santé",
-      "sort": 16
+      "sort": 19
     },
     {
       "key": "fleurs-et-plantes",
       "label": "Fleurs et plantes",
-      "sort": 17
+      "sort": 20
     },
     {
       "key": "fete",
       "label": "Fête",
-      "sort": 18
+      "sort": 21
     },
     {
       "key": "jouets-et-jeux",
       "label": "Jouets et jeux",
-      "sort": 19
+      "sort": 22
     }
   ],
   "exported_from": "artifact marche-epicerie, action listcatalog",
@@ -150,7 +165,7 @@
     },
     {
       "available": true,
-      "category": "viandes-poissons",
+      "category": "poulet",
       "description": "Poulet entier halal, prêt à rôtir au four.",
       "id": 5,
       "image_key": "poulet.jpg",
@@ -161,7 +176,7 @@
     },
     {
       "available": true,
-      "category": "viandes-poissons",
+      "category": "viandes-halal",
       "description": "Bœuf haché halal, pour keftas, sauces et farces.",
       "id": 6,
       "image_key": "boeuf-hache.jpg",
@@ -172,7 +187,7 @@
     },
     {
       "available": true,
-      "category": "viandes-poissons",
+      "category": "poissons",
       "description": "Filets de saumon frais, à griller ou au four.",
       "id": 7,
       "image_key": "saumon.jpg",
@@ -504,7 +519,7 @@
     },
     {
       "available": false,
-      "category": "viandes-poissons",
+      "category": "poulet",
       "description": "Cuisses de poulet halal, à rôtir ou en tajine.",
       "id": 37,
       "image_key": "cuisses-poulet.webp",
@@ -515,7 +530,7 @@
     },
     {
       "available": false,
-      "category": "viandes-poissons",
+      "category": "poulet",
       "description": "Pilons de poulet halal, à griller ou au four.",
       "id": 38,
       "image_key": "pilons-poulet.webp",
@@ -526,7 +541,7 @@
     },
     {
       "available": false,
-      "category": "viandes-poissons",
+      "category": "poissons",
       "description": "Crevettes fraîches, à poêler ou en brochettes.",
       "id": 39,
       "image_key": "crevettes.webp",
@@ -537,7 +552,7 @@
     },
     {
       "available": false,
-      "category": "viandes-poissons",
+      "category": "poulet",
       "description": "Bologne de poulet halal, en tranches pour sandwichs.",
       "id": 40,
       "image_key": "bologne-poulet-halal.webp",
@@ -548,7 +563,7 @@
     },
     {
       "available": false,
-      "category": "patisserie",
+      "category": "orientaux-maghrebins",
       "description": "Pâtisseries orientales assorties, au miel et aux amandes.",
       "id": 41,
       "image_key": "patisseries-orientales.webp",
@@ -747,7 +762,7 @@
     },
     {
       "available": false,
-      "category": "viandes-poissons",
+      "category": "poulet",
       "description": "Ailes de poulet halal, à griller ou au four.",
       "id": 59,
       "image_key": "ailes-poulet.webp",
@@ -758,7 +773,7 @@
     },
     {
       "available": false,
-      "category": "viandes-poissons",
+      "category": "poulet",
       "description": "Blanc de poulet halal, tendre, à poêler ou en tajine.",
       "id": 60,
       "image_key": "blanc-poulet.webp",
@@ -769,7 +784,7 @@
     },
     {
       "available": false,
-      "category": "viandes-poissons",
+      "category": "viandes-halal",
       "description": "Côtelettes d'agneau halal, à griller.",
       "id": 61,
       "image_key": "cotelettes-agneau.webp",
@@ -780,7 +795,7 @@
     },
     {
       "available": false,
-      "category": "viandes-poissons",
+      "category": "viandes-halal",
       "description": "Gigot d'agneau halal, à rôtir au four.",
       "id": 62,
       "image_key": "gigot-agneau.webp",
@@ -791,7 +806,7 @@
     },
     {
       "available": false,
-      "category": "viandes-poissons",
+      "category": "viandes-halal",
       "description": "Merguez halal, à griller ou à la poêle.",
       "id": 63,
       "image_key": "merguez.webp",
@@ -802,7 +817,7 @@
     },
     {
       "available": false,
-      "category": "viandes-poissons",
+      "category": "poissons",
       "description": "Sardines fraîches, à griller ou en friture.",
       "id": 64,
       "image_key": "sardines.webp",
