@@ -104,6 +104,21 @@ adminRouter.use(requireAdmin);
 
 // --- Produits ---
 
+// GET /api/admin/products — catalogue admin complet (rayons + produits),
+// prix d'achat inclus (`purchase_price_cents`, ADMIN SEULEMENT).
+// L'inventaire du matin et les écrans admin « Produits » / formulaire
+// produit l'utilisent : le catalogue public ne renvoie jamais le prix
+// d'achat, donc l'inventaire calculait une marge « — » partout (v0.7.15).
+adminRouter.get('/products', async (req, res) => {
+  const categories = await all(
+    'SELECT key, label, sort FROM categories ORDER BY sort',
+  );
+  const products = (await all('SELECT * FROM products ORDER BY id')).map(
+    toProduct,
+  );
+  res.json({ ok: true, categories, products });
+});
+
 // POST /api/admin/products — ajouter / modifier un produit.
 // Le prix est en cents par kg pour les produits au poids (la conversion
 // $/lb → $/kg se fait côté appli admin, comme dans l'appli web).

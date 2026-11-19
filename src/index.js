@@ -41,7 +41,7 @@ const app = express();
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true, service: 'soukly-server', version: '0.7.14' });
+  res.json({ ok: true, service: 'soukly-server', version: '0.7.15' });
 });
 
 // Page de confidentialité (URL exigée par Google Play et l'App Store).
