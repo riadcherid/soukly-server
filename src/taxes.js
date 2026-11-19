@@ -15,6 +15,8 @@
 // - Aliment préparé / fast-food (ex. pizza) → taxable TPS + TVQ
 //   (indicateur `prepared` sur le produit ; aucun produit concerné
 //   pour l'instant).
+// - Détaxation par produit (`tax_exempt` sur le produit, ex. le café,
+//   Riad 2026-11-19) : annule la taxe quel que soit le rayon.
 // - Frais de livraison et frais de service → taxables TPS + TVQ.
 // - Rayons sans règle propre (promotions, bébé et enfant, santé) :
 //   détaxés par défaut ; bébé/santé seront affinés produit par produit.
@@ -49,7 +51,8 @@ export function taxOnAmount(amountCents) {
 }
 
 /// Taxe d'une ligne de commande.
-/// line = { categoryKey, soldByWeight, prepared, quantity, lineTotalCents }.
+/// line = { categoryKey, soldByWeight, prepared, taxExempt, quantity, lineTotalCents }.
+/// - Produit détaxé (`taxExempt`, ex. le café) → 0, quel que soit le rayon.
 /// - Vendu au poids → 0.
 /// - Pâtisserie : quantité >= 6 → 0 ; sinon TPS seulement.
 /// - Produit préparé ou rayon taxable → TPS + TVQ.
@@ -57,6 +60,7 @@ export function taxOnAmount(amountCents) {
 export function taxForLine(line) {
   const total = Math.max(0, Math.floor(Number(line.lineTotalCents) || 0));
   if (total === 0) return { tps: 0, tvq: 0 };
+  if (line.taxExempt === true) return { tps: 0, tvq: 0 };
   if (line.soldByWeight === true) return { tps: 0, tvq: 0 };
   if (line.categoryKey === PATISSERIE_CATEGORY) {
     const qty = Math.floor(Number(line.quantity) || 1);
@@ -70,8 +74,8 @@ export function taxForLine(line) {
 }
 
 /// Taxes totales d'une commande.
-/// lines : lignes avec { categoryKey, soldByWeight, prepared, quantity,
-///   lineTotalCents } ; deliveryFeeCents / serviceFeeCents : frais taxables.
+/// lines : lignes avec { categoryKey, soldByWeight, prepared, taxExempt,
+///   quantity, lineTotalCents } ; deliveryFeeCents / serviceFeeCents : frais taxables.
 /// Renvoie { tps_cents, tvq_cents }.
 export function computeOrderTaxes(lines, deliveryFeeCents, serviceFeeCents) {
   let tps = 0;

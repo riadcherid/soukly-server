@@ -148,7 +148,7 @@ export function computeOrderDeposit(items) {
 // même façon (articles reçus seulement, remplacements inclus).
 async function recomputeTotals(db, order) {
   const items = await db.all(
-    `SELECT oi.*, p.category_key, p.sold_by_weight, p.prepared, p.deposit_cents,
+    `SELECT oi.*, p.category_key, p.sold_by_weight, p.prepared, p.tax_exempt, p.deposit_cents,
             rp.deposit_cents AS replacement_deposit_cents
      FROM order_items oi JOIN products p ON p.id = oi.product_id
      LEFT JOIN products rp ON rp.id = oi.replacement_product_id
@@ -161,6 +161,7 @@ async function recomputeTotals(db, order) {
       categoryKey: it.category_key,
       soldByWeight: it.sold_by_weight === true,
       prepared: it.prepared === true,
+      taxExempt: it.tax_exempt === true,
       quantity: it.quantity,
       lineTotalCents: it.line_total_cents,
     })),
@@ -270,6 +271,7 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
       categoryKey: product.category_key,
       soldByWeight: product.sold_by_weight === true,
       prepared: product.prepared === true,
+      taxExempt: product.tax_exempt === true,
       depositCents: product.deposit_cents ?? 0,
       quantity,
       weight_grams,

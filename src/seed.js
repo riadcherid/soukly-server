@@ -35,12 +35,13 @@ export async function seedCatalog() {
       // On ne l'écrase jamais à la mise à jour : l'unité choisie à
       // l'inventaire du matin (ex. 'kg') survit à un nouveau seed.
       // Idem pour on_special (prix spécial), géré par l'admin, et pour
-      // deposit_cents (consigne) et prepared (aliment préparé, taxable) :
-      // insérés à la création depuis catalog.json, jamais écrasés ensuite.
+      // deposit_cents (consigne), prepared (aliment préparé, taxable) et
+      // tax_exempt (produit détaxé, ex. le café) : insérés à la création
+      // depuis catalog.json, jamais écrasés ensuite.
       await db.run(
         `INSERT INTO products
-           (id, name, description, category_key, unit, price_cents, sold_by_weight, price_unit, available, image_key, deposit_cents, prepared)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+           (id, name, description, category_key, unit, price_cents, sold_by_weight, price_unit, available, image_key, deposit_cents, prepared, tax_exempt)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          ON CONFLICT (id) DO UPDATE SET
            name = EXCLUDED.name, description = EXCLUDED.description,
            category_key = EXCLUDED.category_key, unit = EXCLUDED.unit,
@@ -49,6 +50,7 @@ export async function seedCatalog() {
         p.id, p.name, p.description, p.category, p.unit, p.price_cents,
         p.sold_by_weight, p.sold_by_weight ? 'lb' : 'piece', p.available, p.image_key,
         Math.max(0, Math.floor(Number(p.deposit_cents) || 0)), p.prepared === true,
+        p.tax_exempt === true,
       );
     }
     await db.run(
@@ -163,12 +165,13 @@ export async function syncReceiptProducts() {
   for (const p of catalog.products) {
     const result = await run(
       `INSERT INTO products
-         (id, name, description, category_key, unit, price_cents, sold_by_weight, price_unit, available, image_key, deposit_cents, prepared)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         (id, name, description, category_key, unit, price_cents, sold_by_weight, price_unit, available, image_key, deposit_cents, prepared, tax_exempt)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        ON CONFLICT (id) DO NOTHING`,
       p.id, p.name, p.description, p.category, p.unit, p.price_cents,
       p.sold_by_weight, p.sold_by_weight ? 'lb' : 'piece', p.available, p.image_key ?? null,
       Math.max(0, Math.floor(Number(p.deposit_cents) || 0)), p.prepared === true,
+      p.tax_exempt === true,
     );
     inserted += result.rowCount;
     // Prix du reçu : seulement si le prix en base est encore à 0.
@@ -190,11 +193,18 @@ export async function syncReceiptProducts() {
   const prepared = await run(
     'UPDATE products SET prepared = TRUE WHERE id IN (93, 97, 98) AND prepared = FALSE',
   );
-  if (inserted > 0 || priced > 0 || grenades.rowCount > 0 || prepared.rowCount > 0) {
+  // Café détaxé (Riad, 2026-11-19) : grains (id 19) et moulu (id 79),
+  // même si le rayon Boissons est taxable. Le jus Ifruit (id 71)
+  // reste taxé : il n'est pas touché ici.
+  const taxExempt = await run(
+    'UPDATE products SET tax_exempt = TRUE WHERE id IN (19, 79) AND tax_exempt = FALSE',
+  );
+  if (inserted > 0 || priced > 0 || grenades.rowCount > 0 || prepared.rowCount > 0 || taxExempt.rowCount > 0) {
     console.log(
       `Produits des reçus synchronisés : ${inserted} ajouté(s), ${priced} prix rempli(s)` +
       `${grenades.rowCount > 0 ? ', grenades au poids' : ''}` +
-      `${prepared.rowCount > 0 ? `, ${prepared.rowCount} produit(s) préparé(s)` : ''}.`,
+      `${prepared.rowCount > 0 ? `, ${prepared.rowCount} produit(s) préparé(s)` : ''}` +
+      `${taxExempt.rowCount > 0 ? `, ${taxExempt.rowCount} produit(s) détaxé(s)` : ''}.`,
     );
   }
   return { inserted, priced };

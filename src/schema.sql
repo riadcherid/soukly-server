@@ -306,3 +306,10 @@ BEGIN
       CHECK (sound IN ('default', 'long', 'alarme'));
   END IF;
 END $$;
+
+-- Évolution v0.7.12 (idempotente) : détaxation par produit
+-- (`tax_exempt`) — le café (grains et moulu) est détaxé par décision
+-- de Riad (2026-11-19), même si son rayon Boissons est taxable ;
+-- le jus Ifruit reste taxé. La taxe reste décidée par rayon par
+-- défaut ; le flag ne fait que l'annuler produit par produit.
+ALTER TABLE products ADD COLUMN IF NOT EXISTS tax_exempt BOOLEAN NOT NULL DEFAULT FALSE;

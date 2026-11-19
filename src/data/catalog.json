@@ -327,6 +327,7 @@
       "name": "Café en grains",
       "price_cents": 1299,
       "sold_by_weight": false,
+      "tax_exempt": true,
       "unit": "le sac 500 g"
     },
     {
@@ -978,6 +979,7 @@
       "name": "Café moulu 1001 250 g",
       "price_cents": 649,
       "sold_by_weight": false,
+      "tax_exempt": true,
       "unit": "le paquet 250 g"
     },
     {
