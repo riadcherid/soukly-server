@@ -11,6 +11,8 @@ import crypto from 'node:crypto';
 import {
   buildServiceAccountJwt,
   fcmAccessToken,
+  isValidNotificationSound,
+  notificationSoundSettings,
   resetFcmStateForTests,
   sendFcmMessage,
   setFetchForTests,
@@ -249,6 +251,116 @@ test("un échange OAuth2 en échec ne lève pas côté envoi", async () => {
     });
     assert.equal(result.sent, false);
     assert.equal(result.reason, 'fcm_send_failed');
+  } finally {
+    resetFcmStateForTests();
+    delete process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  }
+});
+
+// Son de notification (v0.7.10) : mapping canal + son FCM, et
+// validation du champ `sound` de POST /api/notifications/token.
+
+test('le mapping son → canal + son FCM est correct', () => {
+  assert.deepEqual(notificationSoundSettings('default'), {
+    channelId: 'soukly_commandes',
+    fcmSound: 'default',
+  });
+  assert.deepEqual(notificationSoundSettings('long'), {
+    channelId: 'soukly_commandes_long',
+    fcmSound: 'soukly_long',
+  });
+  assert.deepEqual(notificationSoundSettings('alarme'), {
+    channelId: 'soukly_commandes_alarme',
+    fcmSound: 'soukly_alarme',
+  });
+});
+
+test('un son inconnu ou absent retombe sur le son par défaut', () => {
+  assert.deepEqual(notificationSoundSettings('bidon'), {
+    channelId: 'soukly_commandes',
+    fcmSound: 'default',
+  });
+  assert.deepEqual(notificationSoundSettings(undefined), {
+    channelId: 'soukly_commandes',
+    fcmSound: 'default',
+  });
+  assert.deepEqual(notificationSoundSettings(null), {
+    channelId: 'soukly_commandes',
+    fcmSound: 'default',
+  });
+});
+
+test('la validation du son accepte les 3 choix et refuse le reste', () => {
+  assert.equal(isValidNotificationSound('default'), true);
+  assert.equal(isValidNotificationSound('long'), true);
+  assert.equal(isValidNotificationSound('alarme'), true);
+  assert.equal(isValidNotificationSound('bidon'), false);
+  assert.equal(isValidNotificationSound(''), false);
+  assert.equal(isValidNotificationSound(undefined), false);
+  assert.equal(isValidNotificationSound('LONG'), false);
+});
+
+test("l'envoi FCM utilise le canal et le son du destinataire", async () => {
+  resetFcmStateForTests();
+  setFakeConfig();
+  let fcmCall;
+  const fetch = mockFetch({
+    onTokenExchange: async () =>
+      okJson({ access_token: 'tok-abc', expires_in: 3600 }),
+    onFcmSend: async (url, options) => {
+      fcmCall = { url, options };
+      return okJson({ name: 'projects/soukly-test/messages/42' });
+    },
+  });
+  setFetchForTests(fetch);
+  try {
+    const result = await sendFcmMessage({
+      token: 'fcm-token-xyz',
+      title: 'Nouvelle commande',
+      body: 'Nouvelle commande n° 12 — livraison, 13,95 $.',
+      data: { type: 'order', order_id: '12', role: 'admin' },
+      sound: 'long',
+    });
+    assert.deepEqual(result, { sent: true });
+    const payload = JSON.parse(fcmCall.options.body);
+    assert.equal(payload.message.android.notification.sound, 'soukly_long');
+    assert.equal(
+      payload.message.android.notification.channel_id,
+      'soukly_commandes_long',
+    );
+  } finally {
+    resetFcmStateForTests();
+    delete process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  }
+});
+
+test("l'envoi FCM avec un son inconnu retombe sur le défaut", async () => {
+  resetFcmStateForTests();
+  setFakeConfig();
+  let fcmCall;
+  const fetch = mockFetch({
+    onTokenExchange: async () =>
+      okJson({ access_token: 'tok-abc', expires_in: 3600 }),
+    onFcmSend: async (url, options) => {
+      fcmCall = { url, options };
+      return okJson({ name: 'projects/soukly-test/messages/42' });
+    },
+  });
+  setFetchForTests(fetch);
+  try {
+    const result = await sendFcmMessage({
+      token: 'fcm-token-xyz',
+      title: 'Titre',
+      body: 'Texte',
+      sound: 'bidon',
+    });
+    assert.deepEqual(result, { sent: true });
+    const payload = JSON.parse(fcmCall.options.body);
+    assert.equal(payload.message.android.notification.sound, 'default');
+    assert.equal(
+      payload.message.android.notification.channel_id,
+      'soukly_commandes',
+    );
   } finally {
     resetFcmStateForTests();
     delete process.env.FIREBASE_SERVICE_ACCOUNT_JSON;

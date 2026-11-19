@@ -290,3 +290,19 @@ BEGIN
 END $$;
 CREATE INDEX IF NOT EXISTS idx_device_tokens_owner
   ON device_tokens (owner_type, owner_id);
+
+-- Migration v0.7.10 : son de notification choisi par jeton
+-- ('default' | 'long' | 'alarme') — idempotente : la colonne et la
+-- contrainte sont ajoutées seulement si elles manquent.
+ALTER TABLE device_tokens
+  ADD COLUMN IF NOT EXISTS sound TEXT NOT NULL DEFAULT 'default';
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'device_tokens_sound_check'
+  ) THEN
+    ALTER TABLE device_tokens
+      ADD CONSTRAINT device_tokens_sound_check
+      CHECK (sound IN ('default', 'long', 'alarme'));
+  END IF;
+END $$;

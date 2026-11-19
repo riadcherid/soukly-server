@@ -33,6 +33,34 @@ const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 // importance haute + son par défaut.
 const ANDROID_CHANNEL_ID = 'soukly_commandes';
 
+// Son de notification (v0.7.10) : un canal Android ne peut pas
+// changer de son une fois créé sur le téléphone — il faut donc un
+// canal distinct par son, créé côté appli au démarrage. Le son est
+// choisi dans l'appli (Réglages notifications), enregistré avec le
+// jeton, et réutilisé ici à chaque envoi. Valeur inconnue ou absente
+// → 'default'.
+export const NOTIFICATION_SOUND_SETTINGS = {
+  default: { channelId: ANDROID_CHANNEL_ID, fcmSound: 'default' },
+  long: { channelId: 'soukly_commandes_long', fcmSound: 'soukly_long' },
+  alarme: {
+    channelId: 'soukly_commandes_alarme',
+    fcmSound: 'soukly_alarme',
+  },
+};
+
+/// Réglages FCM d'un son ('default' | 'long' | 'alarme') : canal
+/// Android + nom du son à envoyer. Repli sur 'default' sinon.
+export function notificationSoundSettings(sound) {
+  return (
+    NOTIFICATION_SOUND_SETTINGS[sound] || NOTIFICATION_SOUND_SETTINGS.default
+  );
+}
+
+/// Vrai si le son est un des trois choix valides.
+export function isValidNotificationSound(sound) {
+  return Object.hasOwn(NOTIFICATION_SOUND_SETTINGS, sound);
+}
+
 // ---------------------------------------------------------------------------
 // État (compte de service, jeton d'accès, fetch injectable pour les tests)
 // ---------------------------------------------------------------------------
@@ -157,12 +185,15 @@ export async function fcmAccessToken() {
 /// Envoie UN message FCM (API HTTP v1). Ne lève jamais : renvoie
 /// { sent: true } ou { sent: false, reason }.
 /// `data` : charge utile lue par l'appli au tap (type, order_id, role).
-export async function sendFcmMessage({ token, title, body, data }) {
+/// `sound` : son choisi par le destinataire ('default' | 'long' |
+/// 'alarme', v0.7.10) — canal + son FCM mappés, repli 'default'.
+export async function sendFcmMessage({ token, title, body, data, sound }) {
   const sa = loadServiceAccount();
   if (!sa) return { sent: false, reason: 'fcm_not_configured' };
   try {
     const accessToken = await fcmAccessToken();
     if (!accessToken) return { sent: false, reason: 'fcm_not_configured' };
+    const { channelId, fcmSound } = notificationSoundSettings(sound);
     const res = await fetchImpl(
       `https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`,
       {
@@ -175,11 +206,11 @@ export async function sendFcmMessage({ token, title, body, data }) {
           message: {
             token,
             notification: { title, body },
-            // Son par défaut du téléphone + canal « Commandes Soukly ».
+            // Son choisi par le destinataire + son canal dédié.
             android: {
               notification: {
-                sound: 'default',
-                channel_id: ANDROID_CHANNEL_ID,
+                sound: fcmSound,
+                channel_id: channelId,
               },
             },
             data: data || {},
@@ -199,15 +230,25 @@ export async function sendFcmMessage({ token, title, body, data }) {
   }
 }
 
-async function sendToTokens(tokens, { title, body, data }) {
-  if (!tokens || tokens.length === 0) return { attempted: 0, sent: 0 };
+async function sendToTokens(tokenRows, { title, body, data }) {
+  if (!tokenRows || tokenRows.length === 0) {
+    return { attempted: 0, sent: 0 };
+  }
   const results = await Promise.allSettled(
-    tokens.map((token) => sendFcmMessage({ token, title, body, data })),
+    tokenRows.map((row) =>
+      sendFcmMessage({
+        token: row.token,
+        title,
+        body,
+        data,
+        sound: row.sound,
+      }),
+    ),
   );
   const sent = results.filter(
     (r) => r.status === 'fulfilled' && r.value.sent,
   ).length;
-  return { attempted: tokens.length, sent };
+  return { attempted: tokenRows.length, sent };
 }
 
 // ---------------------------------------------------------------------------
@@ -220,24 +261,30 @@ async function sendToTokens(tokens, { title, body, data }) {
 /// les notifications des deux rôles (une ligne par destinataire).
 /// `ownerType` : 'client' | 'courier' | 'admin' ; l'admin n'a pas
 /// d'identifiant (ownerId null).
+/// `sound` (v0.7.10) : son choisi sur le téléphone ('default' |
+/// 'long' | 'alarme') — une valeur inconnue retombe sur 'default'.
 export async function registerDeviceToken(
   ownerType,
   ownerId,
   token,
   platform,
+  sound = 'default',
 ) {
   const now = new Date().toISOString();
+  const safeSound = isValidNotificationSound(sound) ? sound : 'default';
   await run(
     `INSERT INTO device_tokens
-       (owner_type, owner_id, token, platform, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $5)
+       (owner_type, owner_id, token, platform, sound, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $6)
      ON CONFLICT (token, owner_type, owner_id) DO UPDATE SET
        platform = EXCLUDED.platform,
+       sound = EXCLUDED.sound,
        updated_at = EXCLUDED.updated_at`,
     ownerType,
     ownerId,
     token,
     platform,
+    safeSound,
     now,
   );
 }
@@ -257,18 +304,18 @@ export async function deleteDeviceToken(token, ownerType, ownerId) {
 
 async function tokensForOwner(ownerType, ownerId) {
   const rows = await all(
-    'SELECT token FROM device_tokens WHERE owner_type = $1 AND owner_id = $2',
+    'SELECT token, sound FROM device_tokens WHERE owner_type = $1 AND owner_id = $2',
     ownerType,
     ownerId,
   );
-  return rows.map((r) => r.token);
+  return rows;
 }
 
 async function tokensForAdmins() {
   const rows = await all(
-    "SELECT token FROM device_tokens WHERE owner_type = 'admin'",
+    "SELECT token, sound FROM device_tokens WHERE owner_type = 'admin'",
   );
-  return rows.map((r) => r.token);
+  return rows;
 }
 
 /// Liste les jetons enregistrés (diagnostic admin, v0.7.7) : le
@@ -276,7 +323,7 @@ async function tokensForAdmins() {
 /// caractères (préfixe) pour reconnaître un appareil.
 export async function listDeviceTokens() {
   const rows = await all(
-    `SELECT owner_type, owner_id, platform, created_at, updated_at,
+    `SELECT owner_type, owner_id, platform, sound, created_at, updated_at,
             SUBSTRING(token, 1, 8) AS token_prefix
        FROM device_tokens
       ORDER BY updated_at DESC`,
@@ -495,9 +542,10 @@ export const notificationsRouter = Router();
 
 // POST /api/notifications/token — enregistrer le jeton FCM de cet
 // appareil (client, livreur ou admin selon le jeton d'authentification).
-// Corps : { token, platform } (platform : 'android' | 'ios', défaut
-// 'android'). Un même jeton peut être enregistré pour plusieurs
-// destinataires (un téléphone = un jeton par rôle).
+// Corps : { token, platform, sound } (platform : 'android' | 'ios',
+// défaut 'android' ; sound : 'default' | 'long' | 'alarme', défaut
+// 'default' — v0.7.10). Un même jeton peut être enregistré pour
+// plusieurs destinataires (un téléphone = un jeton par rôle).
 notificationsRouter.post(
   '/notifications/token',
   requireAnyAuth,
@@ -506,14 +554,18 @@ notificationsRouter.post(
     const platform = String(req.body?.platform || 'android')
       .trim()
       .toLowerCase();
+    const sound = String(req.body?.sound || 'default').trim().toLowerCase();
     if (!token || token.length > 4096) {
       return res.status(400).json({ ok: false, error: 'token_invalid' });
     }
     if (platform !== 'android' && platform !== 'ios') {
       return res.status(400).json({ ok: false, error: 'platform_invalid' });
     }
+    if (!isValidNotificationSound(sound)) {
+      return res.status(400).json({ ok: false, error: 'sound_invalid' });
+    }
     const { type, id } = req.notifyOwner;
-    await registerDeviceToken(type, id, token, platform);
+    await registerDeviceToken(type, id, token, platform, sound);
     // Journalisé sans le jeton (v0.7.7 — diagnostic des pannes
     // « aucun jeton enregistré »).
     console.log(`[fcm] jeton enregistré (${type} ${id ?? 'admin'})`);
