@@ -35,12 +35,12 @@ export async function seedCatalog() {
       // On ne l'écrase jamais à la mise à jour : l'unité choisie à
       // l'inventaire du matin (ex. 'kg') survit à un nouveau seed.
       // Idem pour on_special (prix spécial), géré par l'admin, et pour
-      // deposit_cents (consigne) : insérée à la création depuis
-      // catalog.json, jamais écrasée ensuite.
+      // deposit_cents (consigne) et prepared (aliment préparé, taxable) :
+      // insérés à la création depuis catalog.json, jamais écrasés ensuite.
       await db.run(
         `INSERT INTO products
-           (id, name, description, category_key, unit, price_cents, sold_by_weight, price_unit, available, image_key, deposit_cents)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+           (id, name, description, category_key, unit, price_cents, sold_by_weight, price_unit, available, image_key, deposit_cents, prepared)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          ON CONFLICT (id) DO UPDATE SET
            name = EXCLUDED.name, description = EXCLUDED.description,
            category_key = EXCLUDED.category_key, unit = EXCLUDED.unit,
@@ -48,7 +48,7 @@ export async function seedCatalog() {
            available = EXCLUDED.available, image_key = EXCLUDED.image_key`,
         p.id, p.name, p.description, p.category, p.unit, p.price_cents,
         p.sold_by_weight, p.sold_by_weight ? 'lb' : 'piece', p.available, p.image_key,
-        Math.max(0, Math.floor(Number(p.deposit_cents) || 0)),
+        Math.max(0, Math.floor(Number(p.deposit_cents) || 0)), p.prepared === true,
       );
     }
     await db.run(
@@ -148,6 +148,56 @@ export async function syncProductImages() {
     console.log(`Photos synchronisées : ${updated} produit(s) avec photo ajoutée.`);
   }
   return { updated };
+}
+
+// Synchronise les nouveaux produits des reçus Épilys (v0.7.11) :
+// insère les produits de catalog.json absents en base, remplit les
+// prix encore à 0 depuis catalog.json (prix des reçus du 09 et 19 nov.
+// 2026), et applique le passage des grenades au poids. Appelé à
+// chaque démarrage, mais idempotent : un produit déjà présent n'est
+// jamais réinséré, un prix déjà fixé (inventaire du matin ou reçu)
+// n'est jamais écrasé, et la dispo n'est jamais touchée.
+export async function syncReceiptProducts() {
+  let inserted = 0;
+  let priced = 0;
+  for (const p of catalog.products) {
+    const result = await run(
+      `INSERT INTO products
+         (id, name, description, category_key, unit, price_cents, sold_by_weight, price_unit, available, image_key, deposit_cents, prepared)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       ON CONFLICT (id) DO NOTHING`,
+      p.id, p.name, p.description, p.category, p.unit, p.price_cents,
+      p.sold_by_weight, p.sold_by_weight ? 'lb' : 'piece', p.available, p.image_key ?? null,
+      Math.max(0, Math.floor(Number(p.deposit_cents) || 0)), p.prepared === true,
+    );
+    inserted += result.rowCount;
+    // Prix du reçu : seulement si le prix en base est encore à 0.
+    if (p.price_cents > 0) {
+      const updated = await run(
+        'UPDATE products SET price_cents = $1 WHERE id = $2 AND price_cents = 0',
+        p.price_cents, p.id,
+      );
+      priced += updated.rowCount;
+    }
+  }
+  // Grenades (id 35) : vendues au kg chez Épilys, pas à la pièce.
+  const grenades = await run(
+    `UPDATE products SET sold_by_weight = TRUE, unit = 'le kg', price_unit = 'lb'
+     WHERE id = 35 AND sold_by_weight = FALSE`,
+  );
+  // Produits préparés (poulet rôti, zaalouk, salade de carottes) :
+  // taxables TPS + TVQ comme sur les reçus.
+  const prepared = await run(
+    'UPDATE products SET prepared = TRUE WHERE id IN (93, 97, 98) AND prepared = FALSE',
+  );
+  if (inserted > 0 || priced > 0 || grenades.rowCount > 0 || prepared.rowCount > 0) {
+    console.log(
+      `Produits des reçus synchronisés : ${inserted} ajouté(s), ${priced} prix rempli(s)` +
+      `${grenades.rowCount > 0 ? ', grenades au poids' : ''}` +
+      `${prepared.rowCount > 0 ? `, ${prepared.rowCount} produit(s) préparé(s)` : ''}.`,
+    );
+  }
+  return { inserted, priced };
 }
 
 // Ligne de commande : `npm run seed` (remplit toujours, upsert).

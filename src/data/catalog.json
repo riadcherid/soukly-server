@@ -392,7 +392,7 @@
       "id": 25,
       "image_key": "pommes-de-terre.webp",
       "name": "Pommes de terre",
-      "price_cents": 0,
+      "price_cents": 284,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -403,7 +403,7 @@
       "id": 26,
       "image_key": "oignons.webp",
       "name": "Oignons",
-      "price_cents": 0,
+      "price_cents": 109,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -502,9 +502,9 @@
       "id": 35,
       "image_key": "grenades.webp",
       "name": "Grenades",
-      "price_cents": 0,
-      "sold_by_weight": false,
-      "unit": "la pièce"
+      "price_cents": 879,
+      "sold_by_weight": true,
+      "unit": "le kg"
     },
     {
       "available": false,
@@ -513,7 +513,7 @@
       "id": 36,
       "image_key": "clementines.webp",
       "name": "Clémentines",
-      "price_cents": 0,
+      "price_cents": 659,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -612,7 +612,7 @@
       "id": 45,
       "image_key": "olives.webp",
       "name": "Olives en vrac",
-      "price_cents": 0,
+      "price_cents": 958,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -646,7 +646,7 @@
       "id": 48,
       "image_key": "soda-hamoud.webp",
       "name": "Soda Hamoud Boualem",
-      "price_cents": 0,
+      "price_cents": 249,
       "sold_by_weight": false,
       "unit": "la bouteille"
     },
@@ -734,7 +734,7 @@
       "id": 56,
       "image_key": "ail.webp",
       "name": "Ail",
-      "price_cents": 0,
+      "price_cents": 498,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -745,7 +745,7 @@
       "id": 57,
       "image_key": "persil.webp",
       "name": "Persil",
-      "price_cents": 0,
+      "price_cents": 99,
       "sold_by_weight": false,
       "unit": "la botte"
     },
@@ -778,7 +778,7 @@
       "id": 60,
       "image_key": "blanc-poulet.webp",
       "name": "Blanc de poulet",
-      "price_cents": 0,
+      "price_cents": 1199,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -811,7 +811,7 @@
       "id": 63,
       "image_key": "merguez.webp",
       "name": "Merguez halal",
-      "price_cents": 0,
+      "price_cents": 1999,
       "sold_by_weight": true,
       "unit": "le kg"
     },
@@ -856,6 +856,330 @@
       "image_key": "trois-chocolats.webp",
       "name": "Pâtisserie trois chocolats",
       "price_cents": 0,
+      "sold_by_weight": false,
+      "unit": "la pièce"
+    },
+    {
+      "available": true,
+      "category": "laitages-oeufs",
+      "description": "Margarine végétale Labelle, pot de 500 g, pour tartines et cuissons.",
+      "id": 68,
+      "name": "Margarine végétale Labelle 500 g",
+      "price_cents": 499,
+      "sold_by_weight": false,
+      "unit": "le pot 500 g"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Sucre granulé Redpath, sac de 2 kg, pour pâtisseries et boissons chaudes.",
+      "id": 69,
+      "name": "Sucre granulé Redpath 2 kg",
+      "price_cents": 399,
+      "sold_by_weight": false,
+      "unit": "le sac 2 kg"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Huile de tournesol Sara, bouteille de 3 L, pour fritures et cuissons.",
+      "id": 70,
+      "name": "Huile de tournesol Sara 3 L",
+      "price_cents": 1149,
+      "sold_by_weight": false,
+      "unit": "la bouteille 3 L"
+    },
+    {
+      "available": true,
+      "category": "boissons",
+      "deposit_cents": 10,
+      "description": "Jus d’orange et pêche Ifruit, bouteille de 1 L.",
+      "id": 71,
+      "name": "Jus d’orange et pêche Ifruit 1 L",
+      "price_cents": 249,
+      "sold_by_weight": false,
+      "unit": "la bouteille 1 L"
+    },
+    {
+      "available": true,
+      "category": "laitages-oeufs",
+      "description": "Lait sans lactose Natrel 2 %, bouteille de 1 L.",
+      "id": 72,
+      "name": "Lait sans lactose Natrel 2 % 1 L",
+      "price_cents": 389,
+      "sold_by_weight": false,
+      "unit": "la bouteille 1 L"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Champignons entiers Cedar, boîte de 284 ml, pour sauces et plats.",
+      "id": 73,
+      "name": "Champignons entiers Cedar 284 ml",
+      "price_cents": 199,
+      "sold_by_weight": false,
+      "unit": "la boîte 284 ml"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Cannelle en bâton Tayeb, paquet de 150 g, pour pâtisseries et tajines.",
+      "id": 74,
+      "name": "Cannelle en bâton Tayeb 150 g",
+      "price_cents": 399,
+      "sold_by_weight": false,
+      "unit": "le paquet 150 g"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Galettes junior Bimo, paquet de 230 g, pour le goûter.",
+      "id": 75,
+      "name": "Galette junior Bimo 230 g",
+      "price_cents": 149,
+      "sold_by_weight": false,
+      "unit": "le paquet 230 g"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Poivre noir moulu Chatar, paquet de 150 g.",
+      "id": 76,
+      "name": "Poivre noir moulu Chatar 150 g",
+      "price_cents": 549,
+      "sold_by_weight": false,
+      "unit": "le paquet 150 g"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Paprika Tayeb, paquet de 150 g, pour marinades et grillades.",
+      "id": 77,
+      "name": "Paprika Tayeb 150 g",
+      "price_cents": 399,
+      "sold_by_weight": false,
+      "unit": "le paquet 150 g"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Épices à kefta Tayeb, paquet de 150 g, pour brochettes et grillades.",
+      "id": 78,
+      "name": "Épices kefta Tayeb 150 g",
+      "price_cents": 399,
+      "sold_by_weight": false,
+      "unit": "le paquet 150 g"
+    },
+    {
+      "available": true,
+      "category": "boissons",
+      "description": "Café moulu 1001, paquet de 250 g, pour cafetière et turc.",
+      "id": 79,
+      "name": "Café moulu 1001 250 g",
+      "price_cents": 649,
+      "sold_by_weight": false,
+      "unit": "le paquet 250 g"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Curcuma moulu Tayeb, paquet de 150 g, pour riz et tajines.",
+      "id": 80,
+      "name": "Curcuma moulu Tayeb 150 g",
+      "price_cents": 399,
+      "sold_by_weight": false,
+      "unit": "le paquet 150 g"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Biscuits double mix vanille et chocolat Bimo, paquet de 200 g.",
+      "id": 81,
+      "name": "Double mix vanille chocolat Bimo 200 g",
+      "price_cents": 149,
+      "sold_by_weight": false,
+      "unit": "le paquet 200 g"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Torsades Kenz, paquet de 500 g, pour le thé.",
+      "id": 82,
+      "name": "Torsade Kenz 500 g",
+      "price_cents": 249,
+      "sold_by_weight": false,
+      "unit": "le paquet 500 g"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Préparation pour béchamel Easy Cook, paquet de 75 g.",
+      "id": 83,
+      "name": "Béchamel mix Easy Cook 75 g",
+      "price_cents": 149,
+      "sold_by_weight": false,
+      "unit": "le paquet 75 g"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Mayonnaise Lesieur, pot de 500 ml.",
+      "id": 84,
+      "name": "Mayonnaise Lesieur 500 ml",
+      "price_cents": 399,
+      "sold_by_weight": false,
+      "unit": "le pot 500 ml"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Spaghetti Kayna, paquet de 500 g.",
+      "id": 85,
+      "name": "Spaghetti Kayna 500 g",
+      "price_cents": 249,
+      "sold_by_weight": false,
+      "unit": "le paquet 500 g"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Riz basmati Sela Valli, sac de 750 g, pour plats en sauce et biryani.",
+      "id": 86,
+      "name": "Riz basmati Sela Valli 750 g",
+      "price_cents": 429,
+      "sold_by_weight": false,
+      "unit": "le sac 750 g"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Ketchup Lesieur, bouteille de 485 g.",
+      "id": 87,
+      "name": "Ketchup Lesieur 485 g",
+      "price_cents": 399,
+      "sold_by_weight": false,
+      "unit": "la bouteille 485 g"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Coulis de tomates Mutti, bouteille de 680 ml, pour sauces.",
+      "id": 88,
+      "name": "Coulis de tomates Mutti 680 ml",
+      "price_cents": 499,
+      "sold_by_weight": false,
+      "unit": "la bouteille 680 ml"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Sel de mer Delphi, paquet de 750 g.",
+      "id": 89,
+      "name": "Sel de mer Delphi 750 g",
+      "price_cents": 249,
+      "sold_by_weight": false,
+      "unit": "le paquet 750 g"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Vinaigre au citron Casbah, bouteille de 750 ml, pour salades et marinades.",
+      "id": 90,
+      "name": "Vinaigre au citron Casbah 750 ml",
+      "price_cents": 99,
+      "sold_by_weight": false,
+      "unit": "la bouteille 750 ml"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Feuilles de laurier Tayeb, paquet de 15 g, pour plats mijotés.",
+      "id": 91,
+      "name": "Feuilles de laurier Tayeb 15 g",
+      "price_cents": 229,
+      "sold_by_weight": false,
+      "unit": "le paquet 15 g"
+    },
+    {
+      "available": true,
+      "category": "fruits",
+      "description": "Pommes jaunes du Québec, sucrées, à croquer ou en compote.",
+      "id": 92,
+      "name": "Pommes jaunes",
+      "price_cents": 218,
+      "sold_by_weight": true,
+      "unit": "le kg"
+    },
+    {
+      "available": true,
+      "category": "poulet",
+      "description": "Poulet rôti prêt à déguster, à partager en famille.",
+      "id": 93,
+      "name": "Poulet rôti",
+      "prepared": true,
+      "price_cents": 1399,
+      "sold_by_weight": false,
+      "unit": "la pièce"
+    },
+    {
+      "available": true,
+      "category": "boulangerie",
+      "description": "Pain sous-marin frais, pour sandwichs.",
+      "id": 94,
+      "name": "Pain sous-marin",
+      "price_cents": 49,
+      "sold_by_weight": false,
+      "unit": "la pièce"
+    },
+    {
+      "available": true,
+      "category": "legumes",
+      "description": "Menthe fraîche en botte, pour le thé et les salades.",
+      "id": 95,
+      "name": "Menthe fraîche",
+      "price_cents": 99,
+      "sold_by_weight": false,
+      "unit": "la botte"
+    },
+    {
+      "available": true,
+      "category": "epicerie-seche",
+      "description": "Biscuits Pesos Bimo, pour le goûter.",
+      "id": 96,
+      "name": "Pesos Bimo",
+      "price_cents": 149,
+      "sold_by_weight": false,
+      "unit": "le paquet"
+    },
+    {
+      "available": true,
+      "category": "orientaux-maghrebins",
+      "description": "Salade zaalouk (aubergines et tomates), préparée, prête à servir.",
+      "id": 97,
+      "name": "Salade zaalouk",
+      "prepared": true,
+      "price_cents": 399,
+      "sold_by_weight": false,
+      "unit": "le pot"
+    },
+    {
+      "available": true,
+      "category": "orientaux-maghrebins",
+      "description": "Salade de carottes préparée, vendue au kilo.",
+      "id": 98,
+      "name": "Salade de carottes",
+      "prepared": true,
+      "price_cents": 299,
+      "sold_by_weight": false,
+      "unit": "le kg"
+    },
+    {
+      "available": true,
+      "category": "boulangerie",
+      "description": "Pain régulier frais, pour tous les jours.",
+      "id": 99,
+      "name": "Pain régulier",
+      "price_cents": 49,
       "sold_by_weight": false,
       "unit": "la pièce"
     }
