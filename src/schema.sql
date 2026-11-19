@@ -231,17 +231,39 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS dropoff_photo_key TEXT;
 -- Évolutions v0.7.4 (idempotentes, rejouées à chaque démarrage) :
 -- notifications push FCM : jetons d'appareil par destinataire
 -- (client / livreur / admin ; l'admin n'a pas d'identifiant, owner_id
--- NULL). Un jeton appartient à un seul destinataire à la fois : une
--- reconnexion sur le même téléphone transfère le jeton au nouveau
--- compte (ON CONFLICT sur token, dans notifications.js).
+-- NULL). Un même jeton peut appartenir à plusieurs destinataires à
+-- la fois (v0.7.5) : un téléphone utilisé comme client ET comme admin
+-- doit recevoir les notifications des deux rôles. Avant, l'unicité
+-- sur `token` seul transférait le jeton au dernier rôle synchronisé
+-- et l'admin ne recevait plus rien sur ce téléphone.
 CREATE TABLE IF NOT EXISTS device_tokens (
   id SERIAL PRIMARY KEY,
   owner_type TEXT NOT NULL CHECK (owner_type IN ('client', 'courier', 'admin')),
   owner_id INTEGER,
-  token TEXT NOT NULL UNIQUE,
+  token TEXT NOT NULL,
   platform TEXT NOT NULL DEFAULT 'android' CHECK (platform IN ('android', 'ios')),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+-- Migration v0.7.5 : remplacer l'unicité sur `token` seul par
+-- l'unicité sur (token, owner_type, owner_id). NULLS NOT DISTINCT
+-- pour que deux lignes admin (owner_id NULL) du même jeton
+-- comptent comme doublon (Postgres 15+).
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'device_tokens_token_key'
+  ) THEN
+    ALTER TABLE device_tokens DROP CONSTRAINT device_tokens_token_key;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'device_tokens_token_owner_key'
+  ) THEN
+    ALTER TABLE device_tokens
+      ADD CONSTRAINT device_tokens_token_owner_key
+      UNIQUE NULLS NOT DISTINCT (token, owner_type, owner_id);
+  END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS idx_device_tokens_owner
   ON device_tokens (owner_type, owner_id);

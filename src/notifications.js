@@ -213,11 +213,12 @@ async function sendToTokens(tokens, { title, body, data }) {
 // Registre des jetons d'appareil
 // ---------------------------------------------------------------------------
 
-/// Enregistre (ou transfère) un jeton FCM pour un destinataire.
-/// Un jeton appartient à un seul destinataire à la fois : une
-/// reconnexion sur le même téléphone transfère le jeton au nouveau
-/// compte. `ownerType` : 'client' | 'courier' | 'admin' ; l'admin n'a
-/// pas d'identifiant (ownerId null).
+/// Enregistre un jeton FCM pour un destinataire.
+/// Un même jeton peut appartenir à plusieurs destinataires à la fois
+/// (v0.7.5) : un téléphone utilisé comme client ET comme admin reçoit
+/// les notifications des deux rôles (une ligne par destinataire).
+/// `ownerType` : 'client' | 'courier' | 'admin' ; l'admin n'a pas
+/// d'identifiant (ownerId null).
 export async function registerDeviceToken(
   ownerType,
   ownerId,
@@ -229,9 +230,7 @@ export async function registerDeviceToken(
     `INSERT INTO device_tokens
        (owner_type, owner_id, token, platform, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, $5)
-     ON CONFLICT (token) DO UPDATE SET
-       owner_type = EXCLUDED.owner_type,
-       owner_id = EXCLUDED.owner_id,
+     ON CONFLICT (token, owner_type, owner_id) DO UPDATE SET
        platform = EXCLUDED.platform,
        updated_at = EXCLUDED.updated_at`,
     ownerType,
@@ -242,9 +241,17 @@ export async function registerDeviceToken(
   );
 }
 
-/// Supprime un jeton (déconnexion). Silencieux si absent.
-export async function deleteDeviceToken(token) {
-  await run('DELETE FROM device_tokens WHERE token = $1', token);
+/// Supprime le jeton d'UN destinataire (déconnexion). Les autres
+/// rôles du même téléphone gardent leur jeton. Silencieux si absent.
+export async function deleteDeviceToken(token, ownerType, ownerId) {
+  await run(
+    `DELETE FROM device_tokens
+      WHERE token = $1 AND owner_type = $2
+        AND owner_id IS NOT DISTINCT FROM $3`,
+    token,
+    ownerType,
+    ownerId,
+  );
 }
 
 async function tokensForOwner(ownerType, ownerId) {
@@ -270,6 +277,9 @@ async function tokensForAdmins() {
 export async function notifyCustomer(customerId, { title, body, data }) {
   try {
     const tokens = await tokensForOwner('client', customerId);
+    if (tokens.length === 0) {
+      console.log('[fcm] aucun jeton client pour', customerId);
+    }
     return await sendToTokens(tokens, { title, body, data });
   } catch (err) {
     console.error('[fcm] notifyCustomer :', err.message);
@@ -280,6 +290,9 @@ export async function notifyCustomer(customerId, { title, body, data }) {
 export async function notifyCourier(courierId, { title, body, data }) {
   try {
     const tokens = await tokensForOwner('courier', courierId);
+    if (tokens.length === 0) {
+      console.log('[fcm] aucun jeton livreur pour', courierId);
+    }
     return await sendToTokens(tokens, { title, body, data });
   } catch (err) {
     console.error('[fcm] notifyCourier :', err.message);
@@ -290,6 +303,9 @@ export async function notifyCourier(courierId, { title, body, data }) {
 export async function notifyAdmins({ title, body, data }) {
   try {
     const tokens = await tokensForAdmins();
+    if (tokens.length === 0) {
+      console.log('[fcm] aucun jeton admin enregistré');
+    }
     return await sendToTokens(tokens, { title, body, data });
   } catch (err) {
     console.error('[fcm] notifyAdmins :', err.message);
@@ -466,8 +482,8 @@ export const notificationsRouter = Router();
 // POST /api/notifications/token — enregistrer le jeton FCM de cet
 // appareil (client, livreur ou admin selon le jeton d'authentification).
 // Corps : { token, platform } (platform : 'android' | 'ios', défaut
-// 'android'). Réenregistrer le même jeton le transfère au
-// destinataire actuel (un téléphone = un destinataire à la fois).
+// 'android'). Un même jeton peut être enregistré pour plusieurs
+// destinataires (un téléphone = un jeton par rôle).
 notificationsRouter.post(
   '/notifications/token',
   requireAnyAuth,
@@ -488,8 +504,9 @@ notificationsRouter.post(
   },
 );
 
-// DELETE /api/notifications/token — retirer le jeton FCM de cet
-// appareil (déconnexion). Corps : { token }. Silencieux si absent.
+// DELETE /api/notifications/token — retirer le jeton FCM de CE
+// destinataire (déconnexion). Les autres rôles du même téléphone
+// gardent leur jeton. Corps : { token }. Silencieux si absent.
 notificationsRouter.delete(
   '/notifications/token',
   requireAnyAuth,
@@ -498,7 +515,8 @@ notificationsRouter.delete(
     if (!token) {
       return res.status(400).json({ ok: false, error: 'token_invalid' });
     }
-    await deleteDeviceToken(token);
+    const { type, id } = req.notifyOwner;
+    await deleteDeviceToken(token, type, id);
     return res.json({ ok: true });
   },
 );
