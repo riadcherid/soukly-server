@@ -55,7 +55,7 @@ app.use('/api', (req, res, next) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true, service: 'soukly-server', version: '0.7.18' });
+  res.json({ ok: true, service: 'soukly-server', version: '0.7.19' });
 });
 
 // Page de confidentialité (URL exigée par Google Play et l'App Store).

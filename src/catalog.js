@@ -22,12 +22,15 @@ function toProduct(row) {
     sold_by_weight: priceUnit === 'lb' || priceUnit === 'kg',
     on_special: row.on_special === true,
     prepared: row.prepared === true,
+    tax_exempt: row.tax_exempt === true,
     deposit_cents: row.deposit_cents ?? 0,
     available: row.available === true,
     image_key: row.image_key,
     photo_url: photoUrl(row.image_key),
   };
 }
+
+export { toProduct };
 
 catalogRouter.get('/catalog', async (req, res) => {
   const categories = await all('SELECT key, label, sort FROM categories ORDER BY sort');
