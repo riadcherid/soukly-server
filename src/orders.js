@@ -10,6 +10,7 @@ import { requireAdmin } from './admin.js';
 import { quoteFees } from './fees.js';
 import { computeOrderTaxes } from './taxes.js';
 import { sendOrderReceipt } from './email.js';
+import { photoUrl } from './photos.js';
 
 const ORDER_STATUSES = ['recue', 'en_preparation', 'prete', 'en_livraison', 'terminee', 'annulee'];
 const ITEM_STATUSES = ['a_collecter', 'collecte', 'manquant'];
@@ -80,6 +81,7 @@ function publicOrder(row, items) {
     delivery_zone: row.delivery_zone,
     courier_id: row.courier_id ?? null,
     courier_name: row.courier_name ?? null,
+    dropoff_photo_url: photoUrl(row.dropoff_photo_key),
     created_at: row.created_at,
     updated_at: row.updated_at,
     items: (items || []).map(publicItem),

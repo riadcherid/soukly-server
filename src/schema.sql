@@ -220,3 +220,10 @@ CREATE TABLE IF NOT EXISTS courier_positions (
 );
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS courier_id INTEGER REFERENCES couriers(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_orders_courier ON orders(courier_id);
+
+-- Évolutions v0.7.3 (idempotentes, rejouées à chaque démarrage) :
+-- photo de dépôt du livreur (preuve quand le client ne donne pas le
+-- code : le livreur dépose la commande devant la porte, prend une
+-- photo et part — sans attendre) : clé de la photo de dépôt sur la
+-- commande.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS dropoff_photo_key TEXT;

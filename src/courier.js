@@ -3,14 +3,18 @@
 // haché bcrypt — pas de vérification par e-mail, l'admin les crée).
 // Le livreur voit ses livraisons, démarre la livraison (envoi de sa
 // position GPS), et confirme la remise avec le code à 6 chiffres du
-// client. Le jeton JWT porte `courier_id` (les jetons clients portent
+// client — ou, si le client n'est pas là, en déposant la commande
+// devant la porte et en prenant une photo comme preuve (v0.7.3).
+// Le jeton JWT porte `courier_id` (les jetons clients portent
 // `customer_id`) : un jeton client ne passe pas `requireCourier`.
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+import fs from 'node:fs';
 import jwt from 'jsonwebtoken';
 import { all, get, run } from './db.js';
 import { loadOrderWithItems } from './orders.js';
 import { sendOrderReceipt } from './email.js';
+import { photoUpload, photoUploadError } from './photos.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 const JWT_EXPIRES_IN = '30d';
@@ -166,6 +170,24 @@ courierRouter.post('/courier/deliveries/:id/position', requireCourier, async (re
   return res.json({ ok: true, position: { lat, lng, updated_at: now } });
 });
 
+// Terminer une livraison : la commande passe en « terminee » (le
+// total final est fixé), le partage de position s'arrête et le reçu
+// part par e-mail (une seule fois). Commun à la confirmation par code
+// et à la confirmation par photo de dépôt (v0.7.3).
+async function finalizeDelivery(order) {
+  const now = new Date().toISOString();
+  const finalTotal = order.final_total_cents ?? order.total_cents;
+  await run(
+    'UPDATE orders SET status = $1, final_total_cents = $2, updated_at = $3 WHERE id = $4',
+    'terminee', finalTotal, now, order.id,
+  );
+  await run('DELETE FROM courier_positions WHERE order_id = $1', order.id);
+  if (!order.receipt_email_sent_at) {
+    sendOrderReceipt(order.id).catch((err) => console.error('[receipt]', err.message));
+  }
+  return loadOrderWithItems(order.id);
+}
+
 // POST /api/courier/deliveries/{id}/confirm — confirmer la remise
 // avec le code à 6 chiffres du client : la commande passe en
 // « terminee » (le reçu part par e-mail comme quand l'admin termine
@@ -184,15 +206,61 @@ courierRouter.post('/courier/deliveries/:id/confirm', requireCourier, async (req
   if (code !== order.delivery_code) {
     return res.status(403).json({ ok: false, error: 'delivery_code_invalid' });
   }
-  const now = new Date().toISOString();
-  const finalTotal = order.final_total_cents ?? order.total_cents;
-  await run(
-    'UPDATE orders SET status = $1, final_total_cents = $2, updated_at = $3 WHERE id = $4',
-    'terminee', finalTotal, now, id,
-  );
-  await run('DELETE FROM courier_positions WHERE order_id = $1', id);
-  if (!order.receipt_email_sent_at) {
-    sendOrderReceipt(id).catch((err) => console.error('[receipt]', err.message));
+  const finished = await finalizeDelivery(order);
+  return res.json({ ok: true, order: finished });
+});
+
+// POST /api/courier/deliveries/{id}/dropoff-photo — envoyer la photo
+// de dépôt (multipart, champ `photo`, JPEG/PNG/WebP, 5 Mo max, même
+// mécanisme que les photos produits). Livraison en cours seulement.
+// La photo est enregistrée sur la commande (dropoff_photo_key) :
+// elle sert de preuve si le client ne donne pas son code, et elle
+// est visible par l'admin et par le client. L'envoi seul ne termine
+// pas la livraison : il faut ensuite appeler /confirm-dropoff.
+courierRouter.post('/courier/deliveries/:id/dropoff-photo', requireCourier, (req, res) => {
+  photoUpload.single('photo')(req, res, async (err) => {
+    if (err) {
+      const { status, body } = photoUploadError(err);
+      return res.status(status).json(body);
+    }
+    if (!req.file) {
+      return res.status(400).json({ ok: false, error: 'photo_required' });
+    }
+    const id = Number(req.params.id);
+    const order = await loadAssignedOrder(id, req.courier.id);
+    if (!order || order.status !== 'en_livraison') {
+      // Photo déjà enregistrée sur le disque mais commande invalide :
+      // on la supprime pour ne pas laisser de fichier orphelin.
+      fs.unlink(req.file.path, () => {});
+      if (!order) return res.status(404).json({ ok: false, error: 'order_not_found' });
+      return res.status(409).json({ ok: false, error: 'order_not_in_delivery' });
+    }
+    await run(
+      'UPDATE orders SET dropoff_photo_key = $1, updated_at = $2 WHERE id = $3',
+      req.file.filename, new Date().toISOString(), id,
+    );
+    return res.status(201).json({ ok: true, order: await loadOrderWithItems(id) });
+  });
+});
+
+// POST /api/courier/deliveries/{id}/confirm-dropoff — confirmer la
+// remise avec la photo de dépôt, sans le code du client. Quand le
+// livreur arrive et que le client n'est pas là (ou ne donne pas son
+// code), il dépose la commande devant la porte, prend une photo comme
+// preuve et part tout de suite — aucune attente. Il faut une photo
+// envoyée. La commande passe en « terminee » comme pour la
+// confirmation par code (total final fixé, position arrêtée, reçu
+// e-mail envoyé).
+courierRouter.post('/courier/deliveries/:id/confirm-dropoff', requireCourier, async (req, res) => {
+  const id = Number(req.params.id);
+  const order = await loadAssignedOrder(id, req.courier.id);
+  if (!order) return res.status(404).json({ ok: false, error: 'order_not_found' });
+  if (order.status !== 'en_livraison') {
+    return res.status(409).json({ ok: false, error: 'order_not_in_delivery' });
   }
-  return res.json({ ok: true, order: await loadOrderWithItems(id) });
+  if (!order.dropoff_photo_key) {
+    return res.status(400).json({ ok: false, error: 'dropoff_photo_required' });
+  }
+  const finished = await finalizeDelivery(order);
+  return res.json({ ok: true, order: finished });
 });
