@@ -16,6 +16,7 @@ import { quoteFees } from './fees.js';
 import { PRIVACY_HTML } from './privacy.js';
 import { addressRouter } from './address.js';
 import { reportsRouter } from './reports.js';
+import { statsRouter } from './stats.js';
 
 await initSchema();
 
@@ -35,7 +36,7 @@ const app = express();
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true, service: 'soukly-server', version: '0.7.8' });
+  res.json({ ok: true, service: 'soukly-server', version: '0.7.9' });
 });
 
 // Page de confidentialité (URL exigée par Google Play et l'App Store).
@@ -52,6 +53,7 @@ app.use('/api', addressRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/admin', uploadRouter);
 app.use('/api/admin', reportsRouter);
+app.use('/api/admin', statsRouter);
 app.use('/api/images', imagesRouter);
 app.use('/api', googleRouter);
 
