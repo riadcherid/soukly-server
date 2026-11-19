@@ -16,18 +16,18 @@
       "sort": 3
     },
     {
-      "key": "poulet",
-      "label": "Poulet",
+      "key": "volailles",
+      "label": "Volailles",
       "sort": 4
     },
     {
-      "key": "poissons",
-      "label": "Poissons",
+      "key": "poissons-et-fruits-de-mer",
+      "label": "Poissons et fruits de mer",
       "sort": 5
     },
     {
-      "key": "laitages-oeufs",
-      "label": "Laitages et œufs",
+      "key": "produits-laitiers-et-oeufs",
+      "label": "Produits laitiers et œufs",
       "sort": 6
     },
     {
@@ -41,74 +41,54 @@
       "sort": 8
     },
     {
-      "key": "orientaux-maghrebins",
-      "label": "Orientaux et Maghrébins",
+      "key": "epicerie-seche",
+      "label": "Épicerie sèche",
       "sort": 9
     },
     {
-      "key": "epicerie-seche",
-      "label": "Épicerie sèche et conserves",
+      "key": "produits-orientaux-et-maghrebins",
+      "label": "Produits orientaux et maghrébins",
       "sort": 10
-    },
-    {
-      "key": "boissons",
-      "label": "Boissons",
-      "sort": 11
     },
     {
       "key": "surgeles",
       "label": "Surgelés",
+      "sort": 11
+    },
+    {
+      "key": "boissons",
+      "label": "Boissons",
       "sort": 12
     },
     {
-      "key": "menager",
-      "label": "Produits ménagers",
+      "key": "produits-menagers-et-hygiene",
+      "label": "Produits ménagers et hygiène",
       "sort": 13
     },
     {
-      "key": "promotions",
-      "label": "Promotions",
+      "key": "restauration",
+      "label": "Restauration",
       "sort": 14
     },
     {
-      "key": "grignotines",
-      "label": "Grignotines",
+      "key": "glaces-et-desserts-glaces",
+      "label": "Glaces et desserts glacés",
       "sort": 15
     },
     {
-      "key": "soins-personnels-et-beaute",
-      "label": "Soins personnels et beauté",
+      "key": "epicerie-bio-et-produits-naturels",
+      "label": "Épicerie bio et produits naturels",
       "sort": 16
     },
     {
-      "key": "bebe-et-enfant",
-      "label": "Bébé et enfant",
+      "key": "produits-pour-bebes",
+      "label": "Produits pour bébés",
       "sort": 17
     },
     {
-      "key": "animaux",
-      "label": "Animaux",
+      "key": "produits-pour-animaux",
+      "label": "Produits pour animaux",
       "sort": 18
-    },
-    {
-      "key": "sante",
-      "label": "Santé",
-      "sort": 19
-    },
-    {
-      "key": "fleurs-et-plantes",
-      "label": "Fleurs et plantes",
-      "sort": 20
-    },
-    {
-      "key": "fete",
-      "label": "Fête",
-      "sort": 21
-    },
-    {
-      "key": "jouets-et-jeux",
-      "label": "Jouets et jeux",
-      "sort": 22
     }
   ],
   "exported_from": "artifact marche-epicerie, action listcatalog",
@@ -169,7 +149,7 @@
     },
     {
       "available": true,
-      "category": "poulet",
+      "category": "volailles",
       "description": "Poulet entier halal, prêt à rôtir au four.",
       "id": 5,
       "image_key": "poulet.jpg",
@@ -193,7 +173,7 @@
     },
     {
       "available": true,
-      "category": "poissons",
+      "category": "poissons-et-fruits-de-mer",
       "description": "Filets de saumon frais, à griller ou au four.",
       "id": 7,
       "image_key": "saumon.jpg",
@@ -205,7 +185,7 @@
     },
     {
       "available": true,
-      "category": "laitages-oeufs",
+      "category": "produits-laitiers-et-oeufs",
       "description": "Lait frais entier, bouteille de 1 L.",
       "id": 8,
       "image_key": "lait.jpg",
@@ -217,7 +197,7 @@
     },
     {
       "available": true,
-      "category": "laitages-oeufs",
+      "category": "produits-laitiers-et-oeufs",
       "description": "Œufs bruns frais, douzaine.",
       "id": 9,
       "image_key": "oeufs.jpg",
@@ -229,7 +209,7 @@
     },
     {
       "available": true,
-      "category": "laitages-oeufs",
+      "category": "produits-laitiers-et-oeufs",
       "description": "Cheddar fort en bloc de 400 g, à râper ou en tranches.",
       "id": 10,
       "image_key": "cheddar.png",
@@ -388,7 +368,7 @@
     },
     {
       "available": true,
-      "category": "menager",
+      "category": "produits-menagers-et-hygiene",
       "description": "Liquide vaisselle, bouteille de 740 ml.",
       "id": 23,
       "image_key": "liquide-vaisselle.jpg",
@@ -400,7 +380,7 @@
     },
     {
       "available": true,
-      "category": "menager",
+      "category": "produits-menagers-et-hygiene",
       "description": "Essuie-tout, paquet de 6 rouleaux.",
       "id": 24,
       "image_key": "essuie-tout.webp",
@@ -556,7 +536,7 @@
     },
     {
       "available": false,
-      "category": "poulet",
+      "category": "volailles",
       "description": "Cuisses de poulet halal, à rôtir ou en tajine.",
       "id": 37,
       "image_key": "cuisses-poulet.webp",
@@ -568,7 +548,7 @@
     },
     {
       "available": false,
-      "category": "poulet",
+      "category": "volailles",
       "description": "Pilons de poulet halal, à griller ou au four.",
       "id": 38,
       "image_key": "pilons-poulet.webp",
@@ -580,7 +560,7 @@
     },
     {
       "available": false,
-      "category": "poissons",
+      "category": "poissons-et-fruits-de-mer",
       "description": "Crevettes fraîches, à poêler ou en brochettes.",
       "id": 39,
       "image_key": "crevettes.webp",
@@ -592,7 +572,7 @@
     },
     {
       "available": false,
-      "category": "poulet",
+      "category": "volailles",
       "description": "Bologne de poulet halal, en tranches pour sandwichs.",
       "id": 40,
       "image_key": "bologne-poulet-halal.webp",
@@ -604,7 +584,7 @@
     },
     {
       "available": false,
-      "category": "orientaux-maghrebins",
+      "category": "produits-orientaux-et-maghrebins",
       "description": "Pâtisseries orientales assorties, au miel et aux amandes.",
       "id": 41,
       "image_key": "patisseries-orientales.webp",
@@ -821,7 +801,7 @@
     },
     {
       "available": false,
-      "category": "poulet",
+      "category": "volailles",
       "description": "Ailes de poulet halal, à griller ou au four.",
       "id": 59,
       "image_key": "ailes-poulet.webp",
@@ -833,7 +813,7 @@
     },
     {
       "available": false,
-      "category": "poulet",
+      "category": "volailles",
       "description": "Blanc de poulet halal, tendre, à poêler ou en tajine.",
       "id": 60,
       "image_key": "blanc-poulet.webp",
@@ -881,7 +861,7 @@
     },
     {
       "available": false,
-      "category": "poissons",
+      "category": "poissons-et-fruits-de-mer",
       "description": "Sardines fraîches, à griller ou en friture.",
       "id": 64,
       "image_key": "sardines.webp",
@@ -929,7 +909,7 @@
     },
     {
       "available": true,
-      "category": "laitages-oeufs",
+      "category": "produits-laitiers-et-oeufs",
       "description": "Margarine végétale Labelle, pot de 500 g, pour tartines et cuissons.",
       "id": 68,
       "name": "Margarine végétale Labelle 500 g",
@@ -974,7 +954,7 @@
     },
     {
       "available": true,
-      "category": "laitages-oeufs",
+      "category": "produits-laitiers-et-oeufs",
       "description": "Lait sans lactose Natrel 2 %, bouteille de 1 L.",
       "id": 72,
       "name": "Lait sans lactose Natrel 2 % 1 L",
@@ -1206,7 +1186,7 @@
     },
     {
       "available": true,
-      "category": "poulet",
+      "category": "restauration",
       "description": "Poulet rôti prêt à déguster, à partager en famille.",
       "id": 93,
       "name": "Poulet rôti",
@@ -1251,7 +1231,7 @@
     },
     {
       "available": true,
-      "category": "orientaux-maghrebins",
+      "category": "restauration",
       "description": "Salade zaalouk (aubergines et tomates), préparée, prête à servir.",
       "id": 97,
       "name": "Salade zaalouk",
@@ -1263,7 +1243,7 @@
     },
     {
       "available": true,
-      "category": "orientaux-maghrebins",
+      "category": "restauration",
       "description": "Salade de carottes préparée, vendue au kilo.",
       "id": 98,
       "name": "Salade de carottes",

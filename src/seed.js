@@ -1,8 +1,8 @@
 // Migration du catalogue de l'appli web vers la base Postgres du serveur.
 // Source : src/data/catalog.json (export fidèle de l'action `listcatalog`
-// de l'artifact marche-epicerie, 2026-11-14 ; refonte des rayons v0.7.8 :
-// 22 rayons, 67 produits — « Viandes et poissons » scindé en « Viandes
-// halal », « Poulet », « Poissons », plus « Orientaux et Maghrébins »).
+// de l'artifact marche-epicerie, 2026-11-14 ; refonte des rayons v0.7.18 :
+// 18 rayons, 99 produits — nouvelle liste de Riad avec un grand rayon
+// « Restauration » pour les produits préparés).
 // Idempotent : on peut le relancer, il remplace les données du catalogue.
 // Charge .env comme index.js : sans ça, `npm run seed` seul retombe sur
 // le mot de passe par défaut de db.js et échoue en auth_failed.
@@ -86,20 +86,45 @@ export async function seedCatalogIfEmpty() {
   return { seeded: true, ...result };
 }
 
-// Migration des rayons (v0.7.8, une seule fois) : « Viandes et
-// poissons » est scindé en « Viandes halal », « Poulet », « Poissons »,
-// et « Orientaux et Maghrébins » est ajouté. Appelé à chaque
-// démarrage, mais il ne fait quelque chose que si le rayon fusionné
-// existe encore en base : après la migration, les renommages faits
-// par l'admin dans l'appli ne sont plus jamais écrasés. Ne touche
-// ni aux prix, ni aux dispos, ni aux produits hors du rayon fusionné
-// (un produit que l'admin a déjà déplacé ailleurs reste où il est).
+// Migration des rayons (v0.7.18, une seule fois) : nouvelle liste de
+// 18 rayons demandée par Riad (2026-11-19), avec un grand rayon
+// « Restauration » pour les produits préparés. Renommages :
+// poulet → volailles, poissons → poissons-et-fruits-de-mer,
+// laitages-oeufs → produits-laitiers-et-oeufs,
+// orientaux-maghrebins → produits-orientaux-et-maghrebins,
+// menager → produits-menagers-et-hygiene ; les 3 préparés
+// (poulet rôti 93, zaalouk 97, salade de carottes 98) → restauration ;
+// suppression des 7 rayons vides (promotions, grignotines,
+// soins-personnels-et-beaute, sante, fleurs-et-plantes, fete,
+// jouets-et-jeux). Appelé à chaque démarrage, mais il ne fait
+// quelque chose que si le rayon « poulet » existe encore en base :
+// après la migration, les renommages faits par l'admin dans l'appli
+// ne sont plus jamais écrasés. Ne touche ni aux prix, ni aux dispos,
+// ni aux photos. Un produit hors catalogue.json encore dans un ancien
+// rayon suit la même règle (ancien rayon → nouveau, préparé →
+// restauration) ; un rayon ancien encore utilisé n'est pas supprimé.
 export async function syncCatalogCategories() {
   const legacy = await get(
-    "SELECT key FROM categories WHERE key = 'viandes-poissons'",
+    "SELECT key FROM categories WHERE key = 'poulet'",
   );
   if (!legacy) return { migrated: false };
   const byId = new Map(catalog.products.map((p) => [p.id, p]));
+  const legacyMap = {
+    poulet: 'volailles',
+    poissons: 'poissons-et-fruits-de-mer',
+    'laitages-oeufs': 'produits-laitiers-et-oeufs',
+    'orientaux-maghrebins': 'produits-orientaux-et-maghrebins',
+    menager: 'produits-menagers-et-hygiene',
+    'soins-personnels-et-beaute': 'produits-menagers-et-hygiene',
+    'bebe-et-enfant': 'produits-pour-bebes',
+    animaux: 'produits-pour-animaux',
+  };
+  const legacyKeys = [
+    'poulet', 'poissons', 'laitages-oeufs', 'orientaux-maghrebins',
+    'menager', 'promotions', 'grignotines', 'soins-personnels-et-beaute',
+    'bebe-et-enfant', 'animaux', 'sante', 'fleurs-et-plantes', 'fete',
+    'jouets-et-jeux',
+  ];
   await transaction(async (db) => {
     for (const c of catalog.categories) {
       await db.run(
@@ -109,24 +134,31 @@ export async function syncCatalogCategories() {
       );
     }
     const rows = await db.all(
-      "SELECT id FROM products WHERE category_key = 'viandes-poissons'",
+      'SELECT id, category_key, prepared FROM products WHERE category_key = ANY($1)',
+      legacyKeys,
     );
     for (const row of rows) {
       const target = byId.get(row.id);
-      if (target) {
+      const next = target?.category
+        ?? (row.prepared ? 'restauration' : legacyMap[row.category_key]);
+      if (next) {
         await db.run(
           'UPDATE products SET category_key = $1 WHERE id = $2',
-          target.category, row.id,
+          next, row.id,
         );
       }
     }
-    await db.run(
-      `DELETE FROM categories WHERE key = 'viandes-poissons'
-       AND NOT EXISTS (SELECT 1 FROM products WHERE category_key = 'viandes-poissons')`,
-    );
+    for (const key of legacyKeys) {
+      await db.run(
+        `DELETE FROM categories WHERE key = $1
+         AND NOT EXISTS (SELECT 1 FROM products WHERE category_key = $1)`,
+        key,
+      );
+    }
   });
   console.log(
-    'Rayons migrés : « Viandes et poissons » scindé en « Viandes halal », « Poulet », « Poissons » + « Orientaux et Maghrébins ».',
+    'Rayons migrés (18) : volailles, poissons et fruits de mer, produits laitiers et œufs, ' +
+    'produits orientaux et maghrébins, produits ménagers et hygiène, restauration ; rayons vides supprimés.',
   );
   return { migrated: true };
 }

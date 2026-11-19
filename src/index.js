@@ -29,8 +29,8 @@ await seedCatalogIfEmpty();
 // remplit image_key quand il est vide, sans toucher aux prix ni aux dispos.
 await syncProductImages();
 
-// Refonte des rayons (v0.7.8) : ne fait quelque chose que si le rayon
-// fusionné « Viandes et poissons » existe encore en base.
+// Refonte des rayons (v0.7.18) : ne fait quelque chose que si le rayon
+// « poulet » existe encore en base (nouvelle liste de 18 rayons).
 await syncCatalogCategories();
 
 // Nouveaux produits des reçus Épilys (v0.7.11) : insère les absents,
@@ -55,7 +55,7 @@ app.use('/api', (req, res, next) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true, service: 'soukly-server', version: '0.7.17' });
+  res.json({ ok: true, service: 'soukly-server', version: '0.7.18' });
 });
 
 // Page de confidentialité (URL exigée par Google Play et l'App Store).

@@ -62,12 +62,36 @@ test('autre boisson sans flag (jus d\'orange frais, 549 ¢) : toujours taxée', 
   );
 });
 
-test('jouets et jeux (clé jouets-et-jeux, 1000 ¢) : TPS + TVQ', () => {
-  // Régression 2026-11-19 : la clé était 'jouets-jeux' et ne correspondait
-  // à aucun rayon, donc les jouets n'étaient jamais taxés.
+test('restauration et ménagers (nouvelles clés) : TPS + TVQ ; anciennes clés et nouveaux rayons détaxés : 0', () => {
+  // Nouvelles clés taxables (v0.7.18) : 1000 ¢ → TPS 50, TVQ 105.
+  for (const key of [
+    'restauration', 'produits-menagers-et-hygiene',
+    'glaces-et-desserts-glaces', 'produits-pour-animaux',
+  ]) {
+    assert.deepEqual(
+      taxForLine({ categoryKey: key, quantity: 1, lineTotalCents: 1000 }),
+      { tps: 50, tvq: 105 },
+      `rayon ${key}`,
+    );
+  }
+  // Les anciennes clés ont disparu avec leurs rayons : le défaut
+  // (détaxé) s'applique — même chose pour les nouveaux rayons
+  // détaxés (épicerie bio, bébés).
+  for (const key of [
+    'jouets-et-jeux', 'grignotines', 'menager', 'animaux',
+    'fleurs-et-plantes', 'fete', 'soins-personnels-et-beaute',
+    'epicerie-bio-et-produits-naturels', 'produits-pour-bebes',
+  ]) {
+    assert.deepEqual(
+      taxForLine({ categoryKey: key, quantity: 1, lineTotalCents: 1000 }),
+      { tps: 0, tvq: 0 },
+      `rayon ${key}`,
+    );
+  }
+  // Le produit préparé reste taxable quel que soit son rayon.
   assert.deepEqual(
-    taxForLine({ categoryKey: 'jouets-et-jeux', quantity: 1, lineTotalCents: 1000 }),
-    { tps: 50, tvq: 105 },
+    taxForLine({ categoryKey: 'restauration', prepared: true, quantity: 1, lineTotalCents: 1399 }),
+    { tps: 70, tvq: 147 },
   );
 });
 

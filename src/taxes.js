@@ -4,22 +4,26 @@
 // Arrondi à l'entier (cent) par ligne, au plus proche (Math.round).
 //
 // Par rayon (défaut) :
-// - DÉTAXÉS (0 %) : fruits, légumes, viandes et poissons, laitages et
-//   œufs, boulangerie, épicerie sèche et conserves, surgelés.
-// - TAXABLES TPS + TVQ : boissons, grignotines, produits ménagers,
-//   soins personnels et beauté, animaux, fleurs et plantes, fête,
-//   jouets et jeux.
+// - DÉTAXÉS (0 %) : fruits, légumes, viandes halal, volailles,
+//   poissons et fruits de mer, produits laitiers et œufs, boulangerie,
+//   épicerie sèche, surgelés, produits orientaux et maghrébins.
+// - TAXABLES TPS + TVQ : boissons, produits ménagers et hygiène,
+//   restauration, glaces et desserts glacés, produits pour animaux.
 // - PÂTISSERIE : moins de 6 pièces du même produit → TPS seulement
 //   (plus de TVQ depuis juillet 2026) ; 6 pièces ou plus → aucune taxe.
 // - Vendu au poids → AUCUNE taxe, quel que soit le rayon.
 // - Aliment préparé / fast-food (ex. pizza) → taxable TPS + TVQ
-//   (indicateur `prepared` sur le produit ; aucun produit concerné
-//   pour l'instant).
+//   (indicateur `prepared` sur le produit ; les 3 préparés sont en
+//   Restauration depuis v0.7.18, le drapeau reste la garantie).
 // - Détaxation par produit (`tax_exempt` sur le produit, ex. le café,
 //   Riad 2026-11-19) : annule la taxe quel que soit le rayon.
 // - Frais de livraison et frais de service → taxables TPS + TVQ.
-// - Rayons sans règle propre (promotions, bébé et enfant, santé) :
-//   détaxés par défaut ; bébé/santé seront affinés produit par produit.
+// - Rayons sans règle propre (épicerie bio et produits naturels,
+//   produits pour bébés) : détaxés par défaut ; affinés produit par
+//   produit si besoin. Les anciennes clés (grignotines, jouets et jeux,
+//   fleurs et plantes, fête, santé, promotions) ont disparu en v0.7.18
+//   avec leurs rayons vides : les retirer de TAXABLE_CATEGORIES est
+//   sans effet, aucun produit ne les utilisait.
 
 export const TPS_RATE = 0.05;
 export const TVQ_RATE = 0.09975;
@@ -27,13 +31,10 @@ export const TVQ_RATE = 0.09975;
 // Rayons taxables TPS + TVQ (clés de la table categories).
 export const TAXABLE_CATEGORIES = new Set([
   'boissons',
-  'grignotines',
-  'menager',
-  'soins-personnels-et-beaute',
-  'animaux',
-  'fleurs-et-plantes',
-  'fete',
-  'jouets-et-jeux',
+  'produits-menagers-et-hygiene',
+  'restauration',
+  'glaces-et-desserts-glaces',
+  'produits-pour-animaux',
 ]);
 
 const PATISSERIE_CATEGORY = 'patisserie';
