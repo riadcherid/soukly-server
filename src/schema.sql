@@ -227,3 +227,21 @@ CREATE INDEX IF NOT EXISTS idx_orders_courier ON orders(courier_id);
 -- photo et part — sans attendre) : clé de la photo de dépôt sur la
 -- commande.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS dropoff_photo_key TEXT;
+
+-- Évolutions v0.7.4 (idempotentes, rejouées à chaque démarrage) :
+-- notifications push FCM : jetons d'appareil par destinataire
+-- (client / livreur / admin ; l'admin n'a pas d'identifiant, owner_id
+-- NULL). Un jeton appartient à un seul destinataire à la fois : une
+-- reconnexion sur le même téléphone transfère le jeton au nouveau
+-- compte (ON CONFLICT sur token, dans notifications.js).
+CREATE TABLE IF NOT EXISTS device_tokens (
+  id SERIAL PRIMARY KEY,
+  owner_type TEXT NOT NULL CHECK (owner_type IN ('client', 'courier', 'admin')),
+  owner_id INTEGER,
+  token TEXT NOT NULL UNIQUE,
+  platform TEXT NOT NULL DEFAULT 'android' CHECK (platform IN ('android', 'ios')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_device_tokens_owner
+  ON device_tokens (owner_type, owner_id);

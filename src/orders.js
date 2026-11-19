@@ -11,6 +11,11 @@ import { quoteFees } from './fees.js';
 import { computeOrderTaxes } from './taxes.js';
 import { sendOrderReceipt } from './email.js';
 import { photoUrl } from './photos.js';
+import {
+  notifyCourierAssigned,
+  notifyNewOrder,
+  notifyOrderStatusChange,
+} from './notifications.js';
 
 const ORDER_STATUSES = ['recue', 'en_preparation', 'prete', 'en_livraison', 'terminee', 'annulee'];
 const ITEM_STATUSES = ['a_collecter', 'collecte', 'manquant'];
@@ -336,6 +341,11 @@ ordersRouter.post('/orders', requireAuth, async (req, res) => {
   });
 
   const full = await loadOrderWithItems(order.id);
+  // Nouvelle commande : l'admin reçoit une notification push
+  // « Nouvelle commande » (jamais bloquant).
+  notifyNewOrder(full).catch((err) =>
+    console.error('[fcm] notifyNewOrder :', err.message),
+  );
   return res.status(201).json({ ok: true, order: full });
 });
 
@@ -431,7 +441,14 @@ ordersRouter.patch('/orders/:id/status', requireAdmin, async (req, res) => {
   if (status === 'terminee' && !wasTerminee && !order.receipt_email_sent_at) {
     sendOrderReceipt(id).catch((err) => console.error('[receipt]', err.message));
   }
-  return res.json({ ok: true, order: await loadOrderWithItems(id) });
+  const full = await loadOrderWithItems(id);
+  // Le client est averti quand sa commande est terminée ou annulée.
+  if (status === 'terminee' || status === 'annulee') {
+    notifyOrderStatusChange(full, status).catch((err) =>
+      console.error('[fcm] notifyOrderStatusChange :', err.message),
+    );
+  }
+  return res.json({ ok: true, order: full });
 });
 
 // PATCH /api/orders/{id}/assign — assigner un livreur à une commande
@@ -458,7 +475,14 @@ ordersRouter.patch('/orders/:id/assign', requireAdmin, async (req, res) => {
     'UPDATE orders SET courier_id = $1, updated_at = $2 WHERE id = $3',
     courierId, new Date().toISOString(), id,
   );
-  return res.json({ ok: true, order: await loadOrderWithItems(id) });
+  const full = await loadOrderWithItems(id);
+  // Commande assignée : le livreur reçoit une notification push.
+  if (courierId != null) {
+    notifyCourierAssigned(full).catch((err) =>
+      console.error('[fcm] notifyCourierAssigned :', err.message),
+    );
+  }
+  return res.json({ ok: true, order: full });
 });
 
 // GET /api/orders/{id}/courier-position — position du livreur de SA
@@ -560,13 +584,22 @@ ordersRouter.patch('/orders/:id/items/:itemId/status', requireAdmin, async (req,
     await run('UPDATE order_items SET line_total_cents = 0 WHERE id = $1', itemId);
   }
   const updatedOrder = await get('SELECT * FROM orders WHERE id = $1', orderId);
+  let newStatus = updatedOrder.status;
   await transaction(async (db) => {
     await recomputeTotals(db, updatedOrder);
     // Le ramassage a commencé (ou est fini) : le statut de la
     // commande avance tout seul, sans que l'admin le change à la main.
-    await advanceCollectionStatus(db, orderId, updatedOrder.status);
+    newStatus = await advanceCollectionStatus(db, orderId, updatedOrder.status);
   });
-  return res.json({ ok: true, order: await loadOrderWithItems(orderId) });
+  const full = await loadOrderWithItems(orderId);
+  // Statut avancé tout seul (en préparation / prête) : le client est
+  // averti par notification push.
+  if (newStatus !== updatedOrder.status) {
+    notifyOrderStatusChange(full, newStatus).catch((err) =>
+      console.error('[fcm] notifyOrderStatusChange :', err.message),
+    );
+  }
+  return res.json({ ok: true, order: full });
 });
 
 // PATCH /api/orders/{id}/items/{itemId}/weight — poids réel pesé (admin).
@@ -601,16 +634,25 @@ ordersRouter.patch('/orders/:id/items/:itemId/weight', requireAdmin, async (req,
     weight_grams, line_total, itemId,
   );
   const updatedOrder = await get('SELECT * FROM orders WHERE id = $1', orderId);
+  let newStatus = updatedOrder.status;
   const totals = await transaction(async (db) => {
     const result = await recomputeTotals(db, updatedOrder);
     // Pesée = début du ramassage : le statut de la commande avance
     // tout seul, sans que l'admin le change à la main.
-    await advanceCollectionStatus(db, orderId, updatedOrder.status);
+    newStatus = await advanceCollectionStatus(db, orderId, updatedOrder.status);
     return result;
   });
+  const full = await loadOrderWithItems(orderId);
+  // Statut avancé tout seul (en préparation / prête) : le client est
+  // averti par notification push.
+  if (newStatus !== updatedOrder.status) {
+    notifyOrderStatusChange(full, newStatus).catch((err) =>
+      console.error('[fcm] notifyOrderStatusChange :', err.message),
+    );
+  }
   return res.json({
     ok: true,
-    order: await loadOrderWithItems(orderId),
+    order: full,
     total_cents: totals.total,
     final_total_cents: totals.final_total_cents,
   });

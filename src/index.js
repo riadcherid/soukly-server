@@ -9,6 +9,7 @@ import { authRouter } from './auth.js';
 import { ordersRouter } from './orders.js';
 import { adminRouter } from './admin.js';
 import { courierRouter } from './courier.js';
+import { notificationsRouter } from './notifications.js';
 import { googleRouter } from './google.js';
 import { imagesRouter, uploadRouter } from './photos.js';
 import { quoteFees } from './fees.js';
@@ -29,7 +30,7 @@ const app = express();
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true, service: 'soukly-server', version: '0.7.3' });
+  res.json({ ok: true, service: 'soukly-server', version: '0.7.4' });
 });
 
 // Page de confidentialité (URL exigée par Google Play et l'App Store).
@@ -41,6 +42,7 @@ app.use('/api', catalogRouter);
 app.use('/api', authRouter);
 app.use('/api', ordersRouter);
 app.use('/api', courierRouter);
+app.use('/api', notificationsRouter);
 app.use('/api', addressRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/admin', uploadRouter);

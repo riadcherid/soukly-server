@@ -15,6 +15,10 @@ import { all, get, run } from './db.js';
 import { loadOrderWithItems } from './orders.js';
 import { sendOrderReceipt } from './email.js';
 import { photoUpload, photoUploadError } from './photos.js';
+import {
+  notifyDropoff,
+  notifyOrderStatusChange,
+} from './notifications.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 const JWT_EXPIRES_IN = '30d';
@@ -138,7 +142,12 @@ courierRouter.post('/courier/deliveries/:id/start', requireCourier, async (req, 
     'UPDATE orders SET status = $1, updated_at = $2 WHERE id = $3',
     'en_livraison', new Date().toISOString(), id,
   );
-  return res.json({ ok: true, order: await loadOrderWithItems(id) });
+  const full = await loadOrderWithItems(id);
+  // Livreur en route : le client est averti par notification push.
+  notifyOrderStatusChange(full, 'en_livraison').catch((err) =>
+    console.error('[fcm] notifyOrderStatusChange :', err.message),
+  );
+  return res.json({ ok: true, order: full });
 });
 
 // POST /api/courier/deliveries/{id}/position — envoyer sa position
@@ -174,7 +183,9 @@ courierRouter.post('/courier/deliveries/:id/position', requireCourier, async (re
 // total final est fixé), le partage de position s'arrête et le reçu
 // part par e-mail (une seule fois). Commun à la confirmation par code
 // et à la confirmation par photo de dépôt (v0.7.3).
-async function finalizeDelivery(order) {
+// Notifications push : remise par code → le client (« Commande
+// livrée ») ; dépôt avec photo → le client ET l'admin (v0.7.4).
+async function finalizeDelivery(order, { viaDropoff = false } = {}) {
   const now = new Date().toISOString();
   const finalTotal = order.final_total_cents ?? order.total_cents;
   await run(
@@ -185,7 +196,17 @@ async function finalizeDelivery(order) {
   if (!order.receipt_email_sent_at) {
     sendOrderReceipt(order.id).catch((err) => console.error('[receipt]', err.message));
   }
-  return loadOrderWithItems(order.id);
+  const finished = await loadOrderWithItems(order.id);
+  if (viaDropoff) {
+    notifyDropoff(finished).catch((err) =>
+      console.error('[fcm] notifyDropoff :', err.message),
+    );
+  } else {
+    notifyOrderStatusChange(finished, 'terminee').catch((err) =>
+      console.error('[fcm] notifyOrderStatusChange :', err.message),
+    );
+  }
+  return finished;
 }
 
 // POST /api/courier/deliveries/{id}/confirm — confirmer la remise
@@ -261,6 +282,6 @@ courierRouter.post('/courier/deliveries/:id/confirm-dropoff', requireCourier, as
   if (!order.dropoff_photo_key) {
     return res.status(400).json({ ok: false, error: 'dropoff_photo_required' });
   }
-  const finished = await finalizeDelivery(order);
+  const finished = await finalizeDelivery(order, { viaDropoff: true });
   return res.json({ ok: true, order: finished });
 });
