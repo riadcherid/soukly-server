@@ -1,5 +1,5 @@
 // Notifications push — Firebase Cloud Messaging (FCM), API HTTP v1
-// (v0.7.4).
+// (v0.7.7).
 //
 // Le serveur envoie les notifications, l'appli les reçoit (avec son)
 // quand elle est ouverte, en arrière-plan ou fermée. L'envoi ne doit
@@ -21,6 +21,7 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
+import { requireAdmin } from './admin.js';
 import { all, get, run } from './db.js';
 
 const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
@@ -270,6 +271,19 @@ async function tokensForAdmins() {
   return rows.map((r) => r.token);
 }
 
+/// Liste les jetons enregistrés (diagnostic admin, v0.7.7) : le
+/// jeton complet n'est JAMAIS renvoyé, seulement ses 8 premiers
+/// caractères (préfixe) pour reconnaître un appareil.
+export async function listDeviceTokens() {
+  const rows = await all(
+    `SELECT owner_type, owner_id, platform, created_at, updated_at,
+            SUBSTRING(token, 1, 8) AS token_prefix
+       FROM device_tokens
+      ORDER BY updated_at DESC`,
+  );
+  return rows;
+}
+
 // ---------------------------------------------------------------------------
 // Notifications par destinataire (ne lèvent jamais)
 // ---------------------------------------------------------------------------
@@ -500,6 +514,9 @@ notificationsRouter.post(
     }
     const { type, id } = req.notifyOwner;
     await registerDeviceToken(type, id, token, platform);
+    // Journalisé sans le jeton (v0.7.7 — diagnostic des pannes
+    // « aucun jeton enregistré »).
+    console.log(`[fcm] jeton enregistré (${type} ${id ?? 'admin'})`);
     return res.json({ ok: true });
   },
 );
@@ -517,6 +534,19 @@ notificationsRouter.delete(
     }
     const { type, id } = req.notifyOwner;
     await deleteDeviceToken(token, type, id);
+    console.log(`[fcm] jeton retiré (${type} ${id ?? 'admin'})`);
     return res.json({ ok: true });
+  },
+);
+
+// GET /api/admin/device-tokens — liste des jetons enregistrés
+// (diagnostic admin, v0.7.7) : destinataire, plateforme, dates et
+// préfixe du jeton — jamais le jeton complet.
+notificationsRouter.get(
+  '/admin/device-tokens',
+  requireAdmin,
+  async (req, res) => {
+    const tokens = await listDeviceTokens();
+    return res.json({ ok: true, tokens });
   },
 );
